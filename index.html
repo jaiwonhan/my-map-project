@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Custom Marker System with Reset</title>
+  <meta charset="utf-8">
+  <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services"></script>
+  <style>
+    /* 공통 마커 스타일 */
+    .marker {
+      display: inline-block;
+      padding: 3px 5px; /* 내부 여백 */
+      border-radius: 5px; /* 모서리 둥글게 */
+      border: 1px solid #0044CC; /* 외곽선 */
+      font-size: 8px; /* 글씨 크기 */
+      font-weight: bold;
+      text-align: center;
+      color: black;
+    }
+    /* 본건 */
+    .marker.type1 {
+      background-color: #A8B9FF; /* 연한 파란색 */
+    }
+    /* 사례 */
+    .marker.type2,
+    .marker.type3,
+    .marker.type4 {
+      background-color: #D1E8FF; /* 밝은 파란색 */
+    }
+    /* 실거래 */
+    .marker.type5,
+    .marker.type6 {
+      background-color: #E8FFD1; /* 연한 녹색 */
+    }
+
+    /* 입력 폼 스타일 */
+    .form-group {
+      display: flex;
+      align-items: center; /* 수직 가운데 정렬 */
+      margin-bottom: 10px;
+    }
+    .form-group label {
+      width: 100px; /* 텍스트 길이 고정 */
+      text-align: right;
+      margin-right: 10px;
+    }
+    .form-group input {
+      width: 400px; /* 입력창 길이 */
+      height: 25px;
+      padding: 5px;
+      font-size: 14px; /* 텍스트 크기 */
+    }
+    button {
+      font-size: 14px;
+      padding: 5px 10px;
+      margin-top: 10px;
+    }
+  </style>
+  <script>
+    let map;
+    let existingMarkers = []; // 배열로 기존 마커를 관리
+
+    // 지도 초기화
+    function initMap() {
+      const container = document.getElementById("map");
+      const options = {
+        center: new kakao.maps.LatLng(37.5665, 126.9780), // 초기 서울 중심 좌표
+        level: 7, // 지도 확대 수준
+      };
+      map = new kakao.maps.Map(container, options); // 지도 생성
+    }
+
+    // 지도 초기화: 기존 마커 제거
+    function resetMap() {
+      existingMarkers.forEach((marker) => marker.setMap(null)); // 모든 커스텀 마커 제거
+      existingMarkers = []; // 초기화
+    }
+
+    // 검색 기능
+    function searchAddresses() {
+      resetMap(); // 기존 마커를 제거하고 초기화
+
+      const geocoder = new kakao.maps.services.Geocoder();
+      const addresses = [];
+      let firstAddressCoords; // 본건 좌표 저장
+
+      // 입력값 가져오기
+      for (let i = 1; i <= 6; i++) {
+        const inputAddress = document.getElementById(`addressInput${i}`).value.trim();
+        if (inputAddress) {
+          addresses.push({ address: inputAddress, type: i }); // 주소와 타입 저장
+        }
+      }
+
+      if (addresses.length === 0) {
+        alert("최소 1개의 주소를 입력해주세요.");
+        return;
+      }
+
+      // 본건을 먼저 처리
+      addresses.forEach(({ address, type }) => {
+        geocoder.addressSearch(address, (results, status) => {
+          if (status === kakao.maps.services.Status.OK) {
+            const coords = new kakao.maps.LatLng(results[0].y, results[0].x);
+
+            // 본건 좌표를 처리하여 중심 설정
+            if (type === 1 && !firstAddressCoords) {
+              firstAddressCoords = coords; // 본건 좌표 저장
+              map.setCenter(coords); // 지도 중심 이동
+            }
+
+            // HTML 마커 생성 및 추가
+            const customMarker = createHtmlMarker(coords, type);
+            customMarker.setMap(map);
+            existingMarkers.push(customMarker); // 마커를 배열에 추가
+
+            // 클릭 시 정보창 표시
+            const infoWindow = new kakao.maps.InfoWindow({
+              content: `<p>${address}</p>`,
+            });
+
+            kakao.maps.event.addListener(customMarker, "click", () => {
+              infoWindow.open(map, customMarker);
+            });
+          } else {
+            console.error(`"${address}"를 찾을 수 없습니다.`);
+          }
+        });
+      });
+
+      // 본건이 없는 경우 경고 표시
+      if (!firstAddressCoords) {
+        alert("본건 주소가 입력되지 않았습니다.");
+      }
+    }
+
+    // HTML 기반 커스텀 마커 생성 함수
+    function createHtmlMarker(position, type) {
+      const markerElement = document.createElement("div");
+
+      // CSS 클래스명 설정
+      markerElement.className = `marker type${type}`;
+
+      // 마커 텍스트 설정
+      switch (type) {
+        case 1: markerElement.innerText = "본건"; break;
+        case 2: markerElement.innerText = "사례1"; break;
+        case 3: markerElement.innerText = "사례2"; break;
+        case 4: markerElement.innerText = "사례3"; break;
+        case 5: markerElement.innerText = "실거래1"; break;
+        case 6: markerElement.innerText = "실거래2"; break;
+        default: markerElement.innerText = "?";
+      }
+
+      // Overlay로 지도에 추가
+      return new kakao.maps.CustomOverlay({
+        position: position,
+        content: markerElement,
+      });
+    }
+  </script>
+</head>
+<body onload="initMap()"> <!-- 지도 초기화 -->
+  <h1>물건/유사사례/매매사례</h1>
+  <form onsubmit="event.preventDefault(); searchAddresses();">
+    <div class="form-group">
+      <label>본건:</label>
+      <input type="text" id="addressInput1" placeholder="예: 서울특별시 중구 세종대로 110">
+    </div>
+    <div class="form-group">
+      <label>사례1:</label>
+      <input type="text" id="addressInput2" placeholder="예: 서울특별시 강남구 테헤란로 152">
+    </div>
+    <div class="form-group">
+      <label>사례2:</label>
+      <input type="text" id="addressInput3" placeholder="예: 부산광역시 해운대구 우동 1468">
+    </div>
+    <div class="form-group">
+      <label>사례3:</label>
+      <input type="text" id="addressInput4" placeholder="예: 대전광역시 서구 둔산대로 100">
+    </div>
+    <div class="form-group">
+      <label>실거래1:</label>
+      <input type="text" id="addressInput5" placeholder="예: 대구광역시 북구 팔달로 10">
+    </div>
+    <div class="form-group">
+      <label>실거래2:</label>
+      <input type="text" id="addressInput6" placeholder="예: 광주광역시 남구 봉선로 1">
+    </div>
+    <button type="submit">주소 조회</button>
+  </form>
+  <div id="map" style="width: 100%; height: 500px; margin-top: 20px;"></div>
+</body>
+</html>
