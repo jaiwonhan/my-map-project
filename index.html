@@ -16,12 +16,9 @@
       color: black;
     }
     .marker.type1 { background-color: #A8B9FF; }
-    .marker.type2, .marker.type3, .marker.type4 {
-      background-color: #D1E8FF;
-    }
-    .marker.type5, .marker.type6, .marker.type7, .marker.type8, .marker.type9 {
-      background-color: #E8FFD1;
-    }
+    .marker.type2, .marker.type3, .marker.type4 { background-color: #D1E8FF; }
+    .marker.type5, .marker.type6, .marker.type7,
+    .marker.type8, .marker.type9 { background-color: #E8FFD1; }
     .form-container {
       position: absolute;
       top: 20px;
@@ -29,7 +26,7 @@
       background: rgba(255, 255, 255, 0.9);
       padding: 20px;
       border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
       width: 400px;
       z-index: 1;
     }
@@ -49,16 +46,11 @@
       padding: 5px;
       font-size: 14px;
     }
-    button {
-      font-size: 14px;
-      padding: 5px 10px;
-    }
+    button { font-size: 14px; padding: 5px 10px; }
     #map {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       z-index: -1;
     }
   </style>
@@ -109,16 +101,16 @@
     </form>
   </div>
   <div id="map"></div>
+
   <script>
     let map;
     let clusterer;
     let existingMarkers = [];
-    let offsetMap = new Map(); // 동일 좌표 처리용 맵
+    let offsetMap = new Map();
 
-    // 지도 초기화
     function initMap() {
       map = new kakao.maps.Map(document.getElementById("map"), {
-        center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 중심
+        center: new kakao.maps.LatLng(37.5665, 126.9780),
         level: 7
       });
       clusterer = new kakao.maps.MarkerClusterer({
@@ -128,88 +120,81 @@
       });
     }
 
-    // 동일 좌표에 대한 오프셋 계산 (2미터 간격 적용)
+    function getLongitudeOffset(lat, meters) {
+      const earthRadius = 6378137;
+      const latRad = (Math.PI / 180) * lat;
+      return meters / (Math.cos(latRad) * earthRadius) * (180 / Math.PI);
+    }
+
     function applyOffset(coords) {
       const coordKey = `${coords.getLat()},${coords.getLng()}`;
+      const count = offsetMap.get(coordKey) || 0;
+      offsetMap.set(coordKey, count + 1);
 
-      // 동일 좌표에 대한 처리
-      if (!offsetMap.has(coordKey)) {
-        offsetMap.set(coordKey, 0);
-        return coords; // 중복되지 않으면 원래 위치 반환
-      }
+      if (count === 0) return coords; // 첫 번째는 원위치
 
-      const offsetCount = offsetMap.get(coordKey);
+      // count 1부터 오프셋 적용: 30m 간격으로 8방향 분산
+      const stepLat = 30 / 111320;
+      const stepLng = getLongitudeOffset(coords.getLat(), 30);
+      const angle = ((count - 1) % 8) * (Math.PI / 4);
+      const radius = Math.ceil(count / 8);
 
-      // 2m 간격 계산
-      const offsetStepLat = 2 / 111320; // 약 0.000018도 (위도)
-      const offsetStepLng = getLongitudeOffset(coords.getLat(), 2); // 경도 계산
-
-      // 8방향 분산 및 반경 증가
-      const angle = (offsetCount % 8) * (Math.PI / 4); // 8방향 (0도, 45도 등)
-      const radius = Math.ceil((offsetCount + 1) / 8); // 한 바퀴 돌 때마다 반경 증가
-
-      const latOffset = Math.sin(angle) * radius * offsetStepLat;
-      const lngOffset = Math.cos(angle) * radius * offsetStepLng;
-
-      const newCoords = new kakao.maps.LatLng(
-        coords.getLat() + latOffset,
-        coords.getLng() + lngOffset
+      return new kakao.maps.LatLng(
+        coords.getLat() + Math.sin(angle) * radius * stepLat,
+        coords.getLng() + Math.cos(angle) * radius * stepLng
       );
-
-      offsetMap.set(coordKey, offsetCount + 1);
-      return newCoords;
     }
 
-    // 경도 보정용 계산 함수
-    function getLongitudeOffset(lat, meters) {
-      const earthRadius = 6378137; // 지구 반지름 (m)
-      const latRad = (Math.PI / 180) * lat; // 위도를 라디안으로 변환
-      const lngMeters = Math.cos(latRad) * earthRadius; // 위도 따른 경도 거리 계산
-      return meters / lngMeters * (180 / Math.PI); // 경도를 meters로 변환
-    }
-
-    // 주소 검색 및 마커 생성
-    function searchAddresses() {
-      resetMarkers();
-      const geocoder = new kakao.maps.services.Geocoder();
-      let firstAddressCoords = null;
-
-      for (let i = 1; i <= 9; i++) {
-        const inputElement = document.getElementById("addressInput" + i);
-        const address = inputElement.value.trim();
-        if (!address) continue;
-
+    // ✅ 핵심: Promise로 감싸서 순차 처리
+    function geocodeAddress(geocoder, address) {
+      return new Promise((resolve) => {
         geocoder.addressSearch(address, (result, status) => {
           if (status === kakao.maps.services.Status.OK) {
-            let coords = new kakao.maps.LatLng(result[0].y, result[0].x);
-
-            // "본건"의 경우 중심 이동
-            if (!firstAddressCoords) {
-              firstAddressCoords = coords;
-              map.setCenter(coords); // 지도 중심 이동
-            }
-
-            coords = applyOffset(coords); // 마커 위치 조정
-            const marker = createHtmlMarker(coords, i);
-            existingMarkers.push(marker);
-            marker.setMap(map);
-            clusterer.addMarker(marker);
+            resolve({ lat: result[0].y, lng: result[0].x });
           } else {
-            console.error(`"${address}"를 찾을 수 없습니다.`);
+            resolve(null); // 실패해도 다음으로 진행
           }
         });
+      });
+    }
+
+    async function searchAddresses() {
+      resetMarkers();
+      const geocoder = new kakao.maps.services.Geocoder();
+      let firstCoords = null;
+
+      for (let i = 1; i <= 9; i++) {
+        const address = document.getElementById("addressInput" + i).value.trim();
+        if (!address) continue;
+
+        const result = await geocodeAddress(geocoder, address); // ✅ 순차 실행
+        if (!result) {
+          console.error(`"${address}"를 찾을 수 없습니다.`);
+          continue;
+        }
+
+        let coords = new kakao.maps.LatLng(result.lat, result.lng);
+
+        if (!firstCoords) {
+          firstCoords = coords;
+          map.setCenter(coords);
+        }
+
+        coords = applyOffset(coords); // 순차 실행이므로 오프셋 누적 보장
+        const marker = createHtmlMarker(coords, i);
+        existingMarkers.push(marker);
+        marker.setMap(map);
+        clusterer.addMarker(marker);
       }
     }
 
-    // 마커 초기화
     function resetMarkers() {
       existingMarkers.forEach(marker => marker.setMap(null));
       clusterer.clear();
       existingMarkers = [];
-      offsetMap.clear(); // 오프셋 맵 초기화
+      offsetMap.clear();
     }
 
-    // HTML 마커 생성
     function createHtmlMarker(coords, type) {
       const el = document.createElement("div");
       el.className = `marker type${type}`;
