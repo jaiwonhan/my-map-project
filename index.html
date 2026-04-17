@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>물건/유사사례/매매사례 위치도</title>
+  <title>물건/유사사례/매매사례 위치도_v7_0417</title>
   <meta charset="utf-8">
   <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
   <style>
@@ -19,6 +19,7 @@
     .marker.type2, .marker.type3, .marker.type4 { background-color: #D1E8FF; }
     .marker.type5, .marker.type6, .marker.type7,
     .marker.type8, .marker.type9 { background-color: #E8FFD1; }
+
     .form-container {
       position: absolute;
       top: 20px;
@@ -47,6 +48,96 @@
       font-size: 14px;
     }
     button { font-size: 14px; padding: 5px 10px; }
+
+    /* 거리 측정 툴바 */
+    #measureToolbar {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.95);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.15);
+      padding: 12px 16px;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 160px;
+    }
+    #measureToolbar h3 {
+      margin: 0 0 4px 0;
+      font-size: 13px;
+      color: #333;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 6px;
+    }
+    #measureBtn {
+      background: #0044CC;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #measureBtn:hover { background: #0033AA; }
+    #measureBtn.active {
+      background: #CC2200;
+    }
+    #measureBtn.active:hover { background: #AA1100; }
+    #clearMeasureBtn {
+      background: #f0f0f0;
+      color: #333;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #clearMeasureBtn:hover { background: #e0e0e0; }
+    #measureInfo {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.5;
+      min-height: 18px;
+    }
+    #totalDistance {
+      font-size: 13px;
+      font-weight: bold;
+      color: #0044CC;
+    }
+
+    /* 거리 라벨 말풍선 */
+    .dist-label {
+      background: white;
+      border: 1px solid #0044CC;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-size: 11px;
+      font-weight: bold;
+      color: #0044CC;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* 측정 중 커서 힌트 */
+    #measureCursor {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.65);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      z-index: 2;
+      pointer-events: none;
+      display: none;
+    }
+
     #map {
       position: absolute;
       top: 0; left: 0;
@@ -100,13 +191,34 @@
       <button type="submit">주소 조회</button>
     </form>
   </div>
+
+  <!-- 거리 측정 툴바 -->
+  <div id="measureToolbar">
+    <h3>📏 거리 측정</h3>
+    <button id="measureBtn" onclick="toggleMeasure()">측정 시작</button>
+    <button id="clearMeasureBtn" onclick="clearMeasure()">초기화</button>
+    <div id="measureInfo">클릭으로 점을 찍어 거리를 측정하세요.</div>
+    <div id="totalDistance"></div>
+  </div>
+
+  <div id="measureCursor">클릭: 점 추가 &nbsp;|&nbsp; 더블클릭: 측정 완료</div>
   <div id="map"></div>
 
   <script>
-    let map;
-    let clusterer;
+    let map, clusterer;
     let existingMarkers = [];
     let offsetMap = new Map();
+
+    // 거리 측정 관련
+    let isMeasuring = false;
+    let measurePoints = [];       // LatLng 좌표 배열
+    let measurePolylines = [];    // 선 객체 배열
+    let measureDotMarkers = [];   // 점 마커 배열
+    let measureDistLabels = [];   // 거리 라벨 오버레이 배열
+    let measurePreviewLine = null;// 마우스 미리보기 선
+    let measureMouseHandler = null;
+    let measureClickHandler = null;
+    let measureDblClickHandler = null;
 
     function initMap() {
       map = new kakao.maps.Map(document.getElementById("map"), {
@@ -120,6 +232,190 @@
       });
     }
 
+    /* ───────── 거리 측정 ───────── */
+
+    function toggleMeasure() {
+      isMeasuring ? stopMeasure() : startMeasure();
+    }
+
+    function startMeasure() {
+      isMeasuring = true;
+      document.getElementById("measureBtn").textContent = "측정 중지";
+      document.getElementById("measureBtn").classList.add("active");
+      document.getElementById("measureCursor").style.display = "block";
+      document.getElementById("measureInfo").textContent = "지도를 클릭해 시작점을 찍으세요.";
+      document.getElementById("totalDistance").textContent = "";
+
+      // 드래그 방지 (측정 중엔 지도 드래그 끄기 선택 가능 — 여기선 유지)
+      measureClickHandler = kakao.maps.event.addListener(map, "click", onMeasureClick);
+      measureDblClickHandler = kakao.maps.event.addListener(map, "dblclick", onMeasureDblClick);
+      measureMouseHandler = kakao.maps.event.addListener(map, "mousemove", onMeasureMouseMove);
+    }
+
+    function stopMeasure() {
+      isMeasuring = false;
+      document.getElementById("measureBtn").textContent = "측정 시작";
+      document.getElementById("measureBtn").classList.remove("active");
+      document.getElementById("measureCursor").style.display = "none";
+
+      // 이벤트 제거
+      if (measureClickHandler) kakao.maps.event.removeListener(measureClickHandler);
+      if (measureDblClickHandler) kakao.maps.event.removeListener(measureDblClickHandler);
+      if (measureMouseHandler) kakao.maps.event.removeListener(measureMouseHandler);
+
+      // 미리보기 선 제거
+      if (measurePreviewLine) { measurePreviewLine.setMap(null); measurePreviewLine = null; }
+
+      // 최종 거리 표시
+      showTotalDistance();
+    }
+
+    function clearMeasure() {
+      // 강제 중지
+      if (isMeasuring) stopMeasure();
+
+      measurePolylines.forEach(p => p.setMap(null));
+      measureDotMarkers.forEach(m => m.setMap(null));
+      measureDistLabels.forEach(l => l.setMap(null));
+      if (measurePreviewLine) { measurePreviewLine.setMap(null); measurePreviewLine = null; }
+
+      measurePoints = [];
+      measurePolylines = [];
+      measureDotMarkers = [];
+      measureDistLabels = [];
+
+      document.getElementById("measureInfo").textContent = "클릭으로 점을 찍어 거리를 측정하세요.";
+      document.getElementById("totalDistance").textContent = "";
+    }
+
+    function onMeasureClick(mouseEvent) {
+      const latlng = mouseEvent.latLng;
+
+      // 더블클릭 시 click 이벤트가 2번 발생하는 카카오 맵 특성 방지
+      if (measurePoints.length > 0) {
+        const last = measurePoints[measurePoints.length - 1];
+        if (Math.abs(last.getLat() - latlng.getLat()) < 0.000001 &&
+            Math.abs(last.getLng() - latlng.getLng()) < 0.000001) return;
+      }
+
+      measurePoints.push(latlng);
+      addDotMarker(latlng, measurePoints.length);
+
+      if (measurePoints.length > 1) {
+        const prev = measurePoints[measurePoints.length - 2];
+        const curr = measurePoints[measurePoints.length - 1];
+        addSegmentLine(prev, curr);
+        addDistLabel(prev, curr);
+        showTotalDistance();
+      }
+
+      document.getElementById("measureInfo").textContent =
+        `점 ${measurePoints.length}개 찍음. 더블클릭으로 완료.`;
+    }
+
+    function onMeasureDblClick(mouseEvent) {
+      stopMeasure();
+    }
+
+    function onMeasureMouseMove(mouseEvent) {
+      if (measurePoints.length === 0) return;
+      const last = measurePoints[measurePoints.length - 1];
+      const cur = mouseEvent.latLng;
+
+      if (measurePreviewLine) {
+        measurePreviewLine.setPath([last, cur]);
+      } else {
+        measurePreviewLine = new kakao.maps.Polyline({
+          map: map,
+          path: [last, cur],
+          strokeWeight: 2,
+          strokeColor: "#FF4444",
+          strokeOpacity: 0.6,
+          strokeStyle: "dash"
+        });
+      }
+    }
+
+    function addDotMarker(latlng, num) {
+      const el = document.createElement("div");
+      el.style.cssText = `
+        width: 10px; height: 10px;
+        background: #0044CC;
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 0 4px rgba(0,0,0,0.4);
+      `;
+      const overlay = new kakao.maps.CustomOverlay({
+        position: latlng,
+        content: el,
+        yAnchor: 0.5,
+        xAnchor: 0.5
+      });
+      overlay.setMap(map);
+      measureDotMarkers.push(overlay);
+    }
+
+    function addSegmentLine(from, to) {
+      const line = new kakao.maps.Polyline({
+        map: map,
+        path: [from, to],
+        strokeWeight: 3,
+        strokeColor: "#0044CC",
+        strokeOpacity: 0.85,
+        strokeStyle: "solid"
+      });
+      measurePolylines.push(line);
+    }
+
+    function addDistLabel(from, to) {
+      const dist = getDistance(from, to);
+      const midLat = (from.getLat() + to.getLat()) / 2;
+      const midLng = (from.getLng() + to.getLng()) / 2;
+      const midPoint = new kakao.maps.LatLng(midLat, midLng);
+
+      const el = document.createElement("div");
+      el.className = "dist-label";
+      el.textContent = formatDistance(dist);
+
+      const overlay = new kakao.maps.CustomOverlay({
+        position: midPoint,
+        content: el,
+        yAnchor: 1.5
+      });
+      overlay.setMap(map);
+      measureDistLabels.push(overlay);
+    }
+
+    function showTotalDistance() {
+      if (measurePoints.length < 2) return;
+      let total = 0;
+      for (let i = 1; i < measurePoints.length; i++) {
+        total += getDistance(measurePoints[i - 1], measurePoints[i]);
+      }
+      document.getElementById("totalDistance").textContent =
+        `총 거리: ${formatDistance(total)}`;
+    }
+
+    // Haversine 공식으로 두 좌표 간 거리(m) 계산
+    function getDistance(p1, p2) {
+      const R = 6371000;
+      const toRad = d => d * Math.PI / 180;
+      const dLat = toRad(p2.getLat() - p1.getLat());
+      const dLng = toRad(p2.getLng() - p1.getLng());
+      const a = Math.sin(dLat/2)**2 +
+                Math.cos(toRad(p1.getLat())) * Math.cos(toRad(p2.getLat())) *
+                Math.sin(dLng/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function formatDistance(m) {
+      return m >= 1000
+        ? `${(m / 1000).toFixed(2)} km`
+        : `${Math.round(m)} m`;
+    }
+
+    /* ───────── 주소 검색 (기존 코드) ───────── */
+
     function getLongitudeOffset(lat, meters) {
       const earthRadius = 6378137;
       const latRad = (Math.PI / 180) * lat;
@@ -130,30 +426,23 @@
       const coordKey = `${coords.getLat()},${coords.getLng()}`;
       const count = offsetMap.get(coordKey) || 0;
       offsetMap.set(coordKey, count + 1);
-
-      if (count === 0) return coords; // 첫 번째는 원위치
-
-      // count 1부터 오프셋 적용: 30m 간격으로 8방향 분산
+      if (count === 0) return coords;
       const stepLat = 30 / 111320;
       const stepLng = getLongitudeOffset(coords.getLat(), 30);
       const angle = ((count - 1) % 8) * (Math.PI / 4);
       const radius = Math.ceil(count / 8);
-
       return new kakao.maps.LatLng(
         coords.getLat() + Math.sin(angle) * radius * stepLat,
         coords.getLng() + Math.cos(angle) * radius * stepLng
       );
     }
 
-    // ✅ 핵심: Promise로 감싸서 순차 처리
     function geocodeAddress(geocoder, address) {
       return new Promise((resolve) => {
         geocoder.addressSearch(address, (result, status) => {
-          if (status === kakao.maps.services.Status.OK) {
-            resolve({ lat: result[0].y, lng: result[0].x });
-          } else {
-            resolve(null); // 실패해도 다음으로 진행
-          }
+          resolve(status === kakao.maps.services.Status.OK
+            ? { lat: result[0].y, lng: result[0].x }
+            : null);
         });
       });
     }
@@ -166,21 +455,12 @@
       for (let i = 1; i <= 9; i++) {
         const address = document.getElementById("addressInput" + i).value.trim();
         if (!address) continue;
-
-        const result = await geocodeAddress(geocoder, address); // ✅ 순차 실행
-        if (!result) {
-          console.error(`"${address}"를 찾을 수 없습니다.`);
-          continue;
-        }
+        const result = await geocodeAddress(geocoder, address);
+        if (!result) { console.error(`"${address}"를 찾을 수 없습니다.`); continue; }
 
         let coords = new kakao.maps.LatLng(result.lat, result.lng);
-
-        if (!firstCoords) {
-          firstCoords = coords;
-          map.setCenter(coords);
-        }
-
-        coords = applyOffset(coords); // 순차 실행이므로 오프셋 누적 보장
+        if (!firstCoords) { firstCoords = coords; map.setCenter(coords); }
+        coords = applyOffset(coords);
         const marker = createHtmlMarker(coords, i);
         existingMarkers.push(marker);
         marker.setMap(map);
@@ -199,10 +479,7 @@
       const el = document.createElement("div");
       el.className = `marker type${type}`;
       el.innerText = type === 1 ? "본건" : type <= 4 ? `사례${type - 1}` : `실거래${type - 4}`;
-      return new kakao.maps.CustomOverlay({
-        position: coords,
-        content: el,
-      });
+      return new kakao.maps.CustomOverlay({ position: coords, content: el });
     }
   </script>
 </body>
