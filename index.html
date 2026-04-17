@@ -113,6 +113,7 @@
     let map;
     let clusterer;
     let existingMarkers = [];
+    let offsetMap = new Map();
 
     function initMap() {
       map = new kakao.maps.Map(document.getElementById("map"), {
@@ -124,6 +125,25 @@
         averageCenter: true,
         minLevel: 7,
       });
+    }
+
+    function applyOffset(coords) {
+        const coordKey = `${coords.getLat()},${coords.getLng()}`;
+
+        if (!offsetMap.has(coordKey)) {
+            offsetMap.set(coordKey, 0);
+        }
+
+        const offsetCount = offsetMap.get(coordKey);
+        const offsetStep = 0.00003;
+
+        const newCoords = new kakao.maps.LatLng(
+            coords.getLat() + offsetCount * offsetStep,
+            coords.getLng() + offsetCount * offsetStep
+        );
+
+        offsetMap.set(coordKey, offsetCount + 1);
+        return newCoords;
     }
 
     function searchAddresses() {
@@ -138,11 +158,14 @@
 
         geocoder.addressSearch(address, (result, status) => {
           if (status === kakao.maps.services.Status.OK) {
-            const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+            let coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+            coords = applyOffset(coords);
+
             if (!firstAddressCoords) {
               firstAddressCoords = coords;
               map.setCenter(coords);
             }
+
             const marker = createHtmlMarker(coords, i);
             existingMarkers.push(marker);
             marker.setMap(map);
@@ -158,6 +181,7 @@
       existingMarkers.forEach(marker => marker.setMap(null));
       clusterer.clear();
       existingMarkers = [];
+      offsetMap.clear(); 
     }
 
     function createHtmlMarker(coords, type) {
