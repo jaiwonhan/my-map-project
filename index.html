@@ -1,486 +1,542 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>물건/유사사례/매매사례 위치도_v7_0417</title>
+  <title>물건/유사사례/매매사례 위치도</title>
   <meta charset="utf-8">
-  <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
+  <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
   <style>
-    .marker {
-      display: inline-block;
-      padding: 3px 5px;
-      border-radius: 5px;
-      border: 1px solid #0044CC;
-      font-size: 15px;
-      font-weight: bold;
-      text-align: center;
-      color: black;
-    }
-    .marker.type1 { background-color: #A8B9FF; }
-    .marker.type2, .marker.type3, .marker.type4 { background-color: #D1E8FF; }
-    .marker.type5, .marker.type6, .marker.type7,
-    .marker.type8, .marker.type9 { background-color: #E8FFD1; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Malgun Gothic', sans-serif; }
+    #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
     .form-container {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      width: 400px;
-      z-index: 1;
+      position: absolute; top: 20px; left: 20px;
+      background: rgba(255,255,255,0.95); padding: 16px;
+      border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      width: 600px; z-index: 10;
+      max-height: calc(100vh - 40px); overflow-y: auto;
     }
-    .form-group {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
+    .form-container h1 {
+      font-size: 15px; margin-bottom: 10px; color: #222;
+      border-bottom: 1px solid #ddd; padding-bottom: 8px;
+      position: sticky; top: 0; background: rgba(255,255,255,0.97); z-index: 1;
     }
-    .form-group label {
-      width: 100px;
-      text-align: right;
-      margin-right: 10px;
+    .form-header {
+      display: flex; align-items: center; margin-bottom: 5px;
+      position: sticky; top: 34px; background: rgba(255,255,255,0.97); z-index: 1; padding-bottom: 3px;
     }
-    .form-group input {
-      width: calc(100% - 120px);
-      height: 25px;
-      padding: 5px;
-      font-size: 14px;
-    }
-    button { font-size: 14px; padding: 5px 10px; }
+    .form-header .col-type  { width: 80px; font-size: 11px; color: #888; margin-right: 6px; flex-shrink: 0; }
+    .form-header .col-color { width: 24px; font-size: 11px; color: #888; margin-right: 6px; flex-shrink: 0; text-align: center; }
+    .form-header .col-addr  { flex: 1; font-size: 11px; color: #888; margin-right: 6px; }
+    .form-header .col-dist  { width: 110px; font-size: 11px; color: #888; flex-shrink: 0; text-align: center; }
+    .form-header .col-del   { width: 26px; flex-shrink: 0; }
 
-    /* 거리 측정 툴바 */
-    #measureToolbar {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(255,255,255,0.95);
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.15);
-      padding: 12px 16px;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 160px;
+    .form-group { display: flex; align-items: center; margin-bottom: 5px; }
+
+    .input-type {
+      width: 80px; height: 26px; padding: 4px 6px; font-size: 12px;
+      border: 1px solid #ccc; border-radius: 4px; margin-right: 6px; flex-shrink: 0; font-family: inherit;
     }
-    #measureToolbar h3 {
-      margin: 0 0 4px 0;
-      font-size: 13px;
-      color: #333;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 6px;
+    .input-addr {
+      flex: 1; height: 26px; padding: 4px 6px; font-size: 12px;
+      border: 1px solid #ccc; border-radius: 4px; font-family: inherit;
+      margin-right: 6px;
     }
-    #measureBtn {
-      background: #0044CC;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 7px 12px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background 0.2s;
+    .input-type:focus, .input-addr:focus { outline: none; border-color: #4A6FFF; }
+
+    /* 본건 기준 거리 표시 칸 */
+    .dist-cell {
+      width: 110px; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: flex-start;
+      gap: 1px;
     }
-    #measureBtn:hover { background: #0033AA; }
-    #measureBtn.active {
-      background: #CC2200;
+    .dist-cell .dc-time {
+      font-size: 10px; font-weight: bold; color: #4A6FFF; white-space: nowrap;
     }
-    #measureBtn.active:hover { background: #AA1100; }
-    #clearMeasureBtn {
-      background: #f0f0f0;
-      color: #333;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 7px 12px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background 0.2s;
+    .dist-cell .dc-dist {
+      font-size: 10px; font-weight: bold; color: #e8710a; white-space: nowrap;
     }
-    #clearMeasureBtn:hover { background: #e0e0e0; }
-    #measureInfo {
-      font-size: 12px;
-      color: #555;
-      line-height: 1.5;
-      min-height: 18px;
+    .dist-cell .dc-loading {
+      font-size: 10px; color: #bbb; white-space: nowrap;
     }
-    #totalDistance {
-      font-size: 13px;
-      font-weight: bold;
-      color: #0044CC;
+    /* 본건(첫 행)은 표시 안 함 */
+    .dist-cell.is-main { visibility: hidden; }
+
+    .color-pick {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid #ddd; cursor: pointer;
+      margin-right: 6px; flex-shrink: 0; position: relative;
+    }
+    .color-pick:hover { border-color: #999; }
+    .color-popup {
+      display: none; position: absolute; top: 26px; left: 0; z-index: 200;
+      background: white; border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+      padding: 6px; gap: 5px; flex-wrap: wrap; width: 130px;
+    }
+    .color-popup.open { display: flex; }
+    .color-swatch {
+      width: 20px; height: 20px; border-radius: 50%;
+      cursor: pointer; border: 2px solid transparent; transition: transform 0.1s;
+    }
+    .color-swatch:hover { transform: scale(1.2); border-color: #555; }
+
+    .btn-del {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #f1f3f4; border: 1px solid #ddd;
+      color: #aaa; font-size: 13px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-left: 4px; line-height: 1;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-del:hover { background: #ffebee; color: #d93025; border-color: #f4a9a9; }
+
+    .btn-add-row {
+      width: 100%; padding: 6px; margin-top: 6px;
+      background: #f8f9ff; border: 1px dashed #4A6FFF;
+      color: #4A6FFF; border-radius: 6px;
+      font-size: 12px; cursor: pointer; font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-add-row:hover { background: #eef1ff; }
+    .btn-add-row:disabled { background: #f5f5f5; border-color: #ccc; color: #bbb; cursor: not-allowed; }
+    .row-count-info { font-size: 10px; color: #aaa; text-align: right; margin-top: 3px; margin-bottom: 2px; }
+
+    .btn-row {
+      display: flex; gap: 6px; margin-top: 10px;
+      position: sticky; bottom: 0; background: rgba(255,255,255,0.97); padding-top: 8px; padding-bottom: 2px;
+    }
+    .btn { flex: 1; padding: 7px 0; font-size: 12px; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; transition: background 0.2s; }
+    .btn-primary { background: #4A6FFF; color: white; }
+    .btn-primary:hover { background: #3658e0; }
+    .btn-route { background: #34a853; color: white; }
+    .btn-route:hover { background: #257a3e; }
+    .btn-route.active { background: #d93025; }
+    .btn-clear { background: #f1f3f4; color: #444; border: 1px solid #ccc; }
+    .btn-clear:hover { background: #e0e0e0; }
+
+    /* 경로 패널 — 순차 경로 + 합산만 */
+    #routePanel {
+      position: absolute; top: 20px; right: 20px;
+      background: rgba(255,255,255,0.97); border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      padding: 14px 16px; z-index: 10; width: 280px;
+      display: none; max-height: calc(100vh - 40px); overflow-y: auto;
+    }
+    #routePanel h3 {
+      font-size: 13px; color: #222; border-bottom: 1px solid #eee;
+      padding-bottom: 6px; margin-bottom: 8px;
+      position: sticky; top: 0; background: rgba(255,255,255,0.97);
+    }
+    .route-item {
+      display: flex; align-items: center;
+      padding: 5px 0; border-bottom: 1px dashed #f0f0f0;
+      font-size: 11px; gap: 6px;
+    }
+    .route-item:last-child { border-bottom: none; }
+    .route-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .route-seg { flex: 1; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .route-time { color: #4A6FFF; font-weight: bold; white-space: nowrap; font-size: 11px; }
+    .route-dist { color: #34a853; font-weight: bold; white-space: nowrap; font-size: 11px; }
+    .route-total { margin-top: 10px; padding-top: 8px; border-top: 2px solid #eee; font-size: 12px; }
+    .route-total-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .route-total-label { color: #555; }
+    .route-total-val.time { color: #4A6FFF; font-weight: bold; }
+    .route-total-val.dist { color: #34a853; font-weight: bold; }
+
+    /* 마커 팝업 */
+    .marker-popup {
+      background: white; border-radius: 8px;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.25);
+      padding: 10px 14px 10px 12px; font-size: 12px;
+      min-width: 160px; max-width: 230px; position: relative;
+    }
+    .marker-popup .pop-title { font-weight: bold; font-size: 13px; margin-bottom: 2px; color: #222; padding-right: 16px; }
+    .marker-popup .pop-addr  { color: #666; font-size: 11px; white-space: normal; line-height: 1.5; }
+    .marker-popup .pop-close {
+      position: absolute; top: 7px; right: 9px;
+      cursor: pointer; color: #aaa; font-size: 15px; line-height: 1;
+    }
+    .marker-popup .pop-close:hover { color: #333; }
+    .marker-popup::after {
+      content: ''; position: absolute;
+      bottom: -8px; left: 50%; transform: translateX(-50%);
+      border: 8px solid transparent; border-top-color: white; border-bottom: none;
     }
 
-    /* 거리 라벨 말풍선 */
-    .dist-label {
-      background: white;
-      border: 1px solid #0044CC;
-      border-radius: 4px;
-      padding: 2px 5px;
-      font-size: 11px;
-      font-weight: bold;
-      color: #0044CC;
-      white-space: nowrap;
-      pointer-events: none;
+    .kakao-marker {
+      display: inline-block; padding: 3px 8px;
+      border-radius: 5px; border: 1px solid rgba(0,0,0,0.2);
+      font-size: 11px; font-weight: bold; color: white;
+      white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      cursor: pointer; user-select: none;
     }
-
-    /* 측정 중 커서 힌트 */
-    #measureCursor {
-      position: absolute;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.65);
-      color: white;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 12px;
-      z-index: 2;
-      pointer-events: none;
-      display: none;
-    }
-
-    #map {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: -1;
-    }
+    .kakao-marker:hover { filter: brightness(1.1); }
   </style>
 </head>
-<body onload="initMap()">
-  <div class="form-container">
-    <h1>물건/유사사례/매매사례 위치도</h1>
-    <form onsubmit="event.preventDefault(); searchAddresses();">
-      <div id="addresses">
-        <div class="form-group">
-          <label>본건:</label>
-          <input type="text" id="addressInput1" placeholder="예: 서울특별시 중구 세종대로 110">
-        </div>
-        <div class="form-group">
-          <label>사례1:</label>
-          <input type="text" id="addressInput2" placeholder="예: 서울특별시 강남구 테헤란로 152">
-        </div>
-        <div class="form-group">
-          <label>사례2:</label>
-          <input type="text" id="addressInput3" placeholder="예: 부산광역시 해운대구 우동 1468">
-        </div>
-        <div class="form-group">
-          <label>사례3:</label>
-          <input type="text" id="addressInput4" placeholder="예: 대전광역시 서구 둔산대로 100">
-        </div>
-        <div class="form-group">
-          <label>실거래1:</label>
-          <input type="text" id="addressInput5" placeholder="예: 대구광역시 북구 팔달로 10">
-        </div>
-        <div class="form-group">
-          <label>실거래2:</label>
-          <input type="text" id="addressInput6" placeholder="예: 광주광역시 남구 봉선로 1">
-        </div>
-        <div class="form-group">
-          <label>실거래3:</label>
-          <input type="text" id="addressInput7" placeholder="예: 제주특별자치도 제주시 중앙로 120">
-        </div>
-        <div class="form-group">
-          <label>실거래4:</label>
-          <input type="text" id="addressInput8" placeholder="예: 울산광역시 남구 삼산로 150">
-        </div>
-        <div class="form-group">
-          <label>실거래5:</label>
-          <input type="text" id="addressInput9" placeholder="예: 인천광역시 연수구 송도국제대로 10">
-        </div>
-      </div>
-      <button type="submit">주소 조회</button>
-    </form>
-  </div>
-
-  <!-- 거리 측정 툴바 -->
-  <div id="measureToolbar">
-    <h3>📏 거리 측정</h3>
-    <button id="measureBtn" onclick="toggleMeasure()">측정 시작</button>
-    <button id="clearMeasureBtn" onclick="clearMeasure()">초기화</button>
-    <div id="measureInfo">클릭으로 점을 찍어 거리를 측정하세요.</div>
-    <div id="totalDistance"></div>
-  </div>
-
-  <div id="measureCursor">클릭: 점 추가 &nbsp;|&nbsp; 더블클릭: 측정 완료</div>
+<body>
   <div id="map"></div>
 
+  <div class="form-container">
+    <h1>물건 / 유사사례 / 매매사례 위치도</h1>
+    <div class="form-header">
+      <span class="col-type">구분</span>
+      <span class="col-color">색</span>
+      <span class="col-addr">주소</span>
+      <span class="col-dist">본건 기준 거리</span>
+      <span class="col-del"></span>
+    </div>
+
+    <div id="rowList"></div>
+    <div class="row-count-info" id="rowCountInfo"></div>
+    <button class="btn-add-row" id="btnAddRow" onclick="addRow()">+ 행 추가</button>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="searchAddresses()">주소 조회</button>
+      <button class="btn btn-route" id="routeBtn" onclick="toggleRoute()">경로 보기</button>
+      <button class="btn btn-clear" onclick="clearAll()">초기화</button>
+    </div>
+  </div>
+
+  <div id="routePanel">
+    <h3>🚗 순차 경로</h3>
+    <div id="routeList"></div>
+    <div id="routeTotal"></div>
+  </div>
+
   <script>
-    let map, clusterer;
-    let existingMarkers = [];
-    let offsetMap = new Map();
+    const MAX_ROWS      = 10;
+    const PALETTE       = ['#4A6FFF','#FF5C5C','#66BB6A','#FFA726','#AB47BC'];
+    const PALETTE_NAMES = ['파랑','빨강','초록','주황','보라'];
+    const ROUTE_COLORS  = ['#e8410a','#1a73e8','#34a853','#ea4335','#9c27b0','#00bcd4','#ff5722','#607d8b','#f06292','#aed581'];
+    const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
-    // 거리 측정 관련
-    let isMeasuring = false;
-    let measurePoints = [];       // LatLng 좌표 배열
-    let measurePolylines = [];    // 선 객체 배열
-    let measureDotMarkers = [];   // 점 마커 배열
-    let measureDistLabels = [];   // 거리 라벨 오버레이 배열
-    let measurePreviewLine = null;// 마우스 미리보기 선
-    let measureMouseHandler = null;
-    let measureClickHandler = null;
-    let measureDblClickHandler = null;
+    const INIT_ROWS = [
+      { type: '본건',    color: '#4A6FFF' },
+      { type: '사례1',   color: '#FF5C5C' },
+      { type: '사례2',   color: '#66BB6A' },
+      { type: '실거래1', color: '#FFA726' },
+      { type: '실거래2', color: '#AB47BC' },
+    ];
 
-    function initMap() {
-      map = new kakao.maps.Map(document.getElementById("map"), {
-        center: new kakao.maps.LatLng(37.5665, 126.9780),
-        level: 7
-      });
-      clusterer = new kakao.maps.MarkerClusterer({
-        map: map,
-        averageCenter: true,
-        minLevel: 7
-      });
+    let rowIdCounter = 0;
+    let rowColors    = {};
+    let rowOrder     = []; // DOM 순서 추적용
+
+    let map, geocoder;
+    let markerOverlays = [], routePolylines = [], markerList = [];
+    let popupOverlay   = null;
+    let isRouteShown   = false;
+
+    /* ─── 행 관리 ─── */
+    function getRowCount() {
+      return document.querySelectorAll('#rowList .form-group').length;
     }
 
-    /* ───────── 거리 측정 ───────── */
-
-    function toggleMeasure() {
-      isMeasuring ? stopMeasure() : startMeasure();
+    function updateAddBtn() {
+      const count = getRowCount();
+      const btn   = document.getElementById('btnAddRow');
+      const info  = document.getElementById('rowCountInfo');
+      info.textContent = `${count} / ${MAX_ROWS}개`;
+      btn.disabled    = count >= MAX_ROWS;
+      btn.textContent = count >= MAX_ROWS ? `최대 ${MAX_ROWS}개까지 추가 가능합니다` : '+ 행 추가';
     }
 
-    function startMeasure() {
-      isMeasuring = true;
-      document.getElementById("measureBtn").textContent = "측정 중지";
-      document.getElementById("measureBtn").classList.add("active");
-      document.getElementById("measureCursor").style.display = "block";
-      document.getElementById("measureInfo").textContent = "지도를 클릭해 시작점을 찍으세요.";
-      document.getElementById("totalDistance").textContent = "";
+    function addRow(initData = {}) {
+      if (getRowCount() >= MAX_ROWS) return;
+      const id    = ++rowIdCounter;
+      const color = initData.color || PALETTE[0];
+      rowColors[id] = color;
 
-      // 드래그 방지 (측정 중엔 지도 드래그 끄기 선택 가능 — 여기선 유지)
-      measureClickHandler = kakao.maps.event.addListener(map, "click", onMeasureClick);
-      measureDblClickHandler = kakao.maps.event.addListener(map, "dblclick", onMeasureDblClick);
-      measureMouseHandler = kakao.maps.event.addListener(map, "mousemove", onMeasureMouseMove);
-    }
+      const isFirst = getRowCount() === 0; // 본건 여부
 
-    function stopMeasure() {
-      isMeasuring = false;
-      document.getElementById("measureBtn").textContent = "측정 시작";
-      document.getElementById("measureBtn").classList.remove("active");
-      document.getElementById("measureCursor").style.display = "none";
-
-      // 이벤트 제거
-      if (measureClickHandler) kakao.maps.event.removeListener(measureClickHandler);
-      if (measureDblClickHandler) kakao.maps.event.removeListener(measureDblClickHandler);
-      if (measureMouseHandler) kakao.maps.event.removeListener(measureMouseHandler);
-
-      // 미리보기 선 제거
-      if (measurePreviewLine) { measurePreviewLine.setMap(null); measurePreviewLine = null; }
-
-      // 최종 거리 표시
-      showTotalDistance();
-    }
-
-    function clearMeasure() {
-      // 강제 중지
-      if (isMeasuring) stopMeasure();
-
-      measurePolylines.forEach(p => p.setMap(null));
-      measureDotMarkers.forEach(m => m.setMap(null));
-      measureDistLabels.forEach(l => l.setMap(null));
-      if (measurePreviewLine) { measurePreviewLine.setMap(null); measurePreviewLine = null; }
-
-      measurePoints = [];
-      measurePolylines = [];
-      measureDotMarkers = [];
-      measureDistLabels = [];
-
-      document.getElementById("measureInfo").textContent = "클릭으로 점을 찍어 거리를 측정하세요.";
-      document.getElementById("totalDistance").textContent = "";
-    }
-
-    function onMeasureClick(mouseEvent) {
-      const latlng = mouseEvent.latLng;
-
-      // 더블클릭 시 click 이벤트가 2번 발생하는 카카오 맵 특성 방지
-      if (measurePoints.length > 0) {
-        const last = measurePoints[measurePoints.length - 1];
-        if (Math.abs(last.getLat() - latlng.getLat()) < 0.000001 &&
-            Math.abs(last.getLng() - latlng.getLng()) < 0.000001) return;
-      }
-
-      measurePoints.push(latlng);
-      addDotMarker(latlng, measurePoints.length);
-
-      if (measurePoints.length > 1) {
-        const prev = measurePoints[measurePoints.length - 2];
-        const curr = measurePoints[measurePoints.length - 1];
-        addSegmentLine(prev, curr);
-        addDistLabel(prev, curr);
-        showTotalDistance();
-      }
-
-      document.getElementById("measureInfo").textContent =
-        `점 ${measurePoints.length}개 찍음. 더블클릭으로 완료.`;
-    }
-
-    function onMeasureDblClick(mouseEvent) {
-      stopMeasure();
-    }
-
-    function onMeasureMouseMove(mouseEvent) {
-      if (measurePoints.length === 0) return;
-      const last = measurePoints[measurePoints.length - 1];
-      const cur = mouseEvent.latLng;
-
-      if (measurePreviewLine) {
-        measurePreviewLine.setPath([last, cur]);
-      } else {
-        measurePreviewLine = new kakao.maps.Polyline({
-          map: map,
-          path: [last, cur],
-          strokeWeight: 2,
-          strokeColor: "#FF4444",
-          strokeOpacity: 0.6,
-          strokeStyle: "dash"
-        });
-      }
-    }
-
-    function addDotMarker(latlng, num) {
-      const el = document.createElement("div");
-      el.style.cssText = `
-        width: 10px; height: 10px;
-        background: #0044CC;
-        border: 2px solid white;
-        border-radius: 50%;
-        box-shadow: 0 0 4px rgba(0,0,0,0.4);
+      const div = document.createElement('div');
+      div.className = 'form-group';
+      div.id = `row-${id}`;
+      div.innerHTML = `
+        <input class="input-type" type="text" id="type-${id}" placeholder="구분" value="${initData.type || ''}">
+        <div class="color-pick" id="cp-${id}" style="background:${color};" onclick="toggleColorPop(event,${id})">
+          <div class="color-popup" id="pop-${id}"></div>
+        </div>
+        <input class="input-addr" type="text" id="addr-${id}" placeholder="주소를 입력하세요">
+        <div class="dist-cell ${isFirst ? 'is-main' : ''}" id="dist-${id}">
+          <span class="dc-loading">—</span>
+        </div>
+        <button class="btn-del" onclick="deleteRow(${id})" title="행 삭제">×</button>
       `;
-      const overlay = new kakao.maps.CustomOverlay({
-        position: latlng,
-        content: el,
-        yAnchor: 0.5,
-        xAnchor: 0.5
+      document.getElementById('rowList').appendChild(div);
+
+      // 색상 스와치
+      const pop = document.getElementById(`pop-${id}`);
+      PALETTE.forEach((c, ci) => {
+        const sw = document.createElement('div');
+        sw.className = 'color-swatch';
+        sw.style.background = c;
+        sw.title = PALETTE_NAMES[ci];
+        sw.onclick = (e) => {
+          e.stopPropagation();
+          rowColors[id] = c;
+          document.getElementById(`cp-${id}`).style.background = c;
+          closeAllColorPops();
+        };
+        pop.appendChild(sw);
       });
-      overlay.setMap(map);
-      measureDotMarkers.push(overlay);
+
+      updateAddBtn();
     }
 
-    function addSegmentLine(from, to) {
-      const line = new kakao.maps.Polyline({
-        map: map,
-        path: [from, to],
-        strokeWeight: 3,
-        strokeColor: "#0044CC",
-        strokeOpacity: 0.85,
-        strokeStyle: "solid"
-      });
-      measurePolylines.push(line);
+    function deleteRow(id) {
+      const el = document.getElementById(`row-${id}`);
+      if (el) el.remove();
+      delete rowColors[id];
+      updateAddBtn();
     }
 
-    function addDistLabel(from, to) {
-      const dist = getDistance(from, to);
-      const midLat = (from.getLat() + to.getLat()) / 2;
-      const midLng = (from.getLng() + to.getLng()) / 2;
-      const midPoint = new kakao.maps.LatLng(midLat, midLng);
-
-      const el = document.createElement("div");
-      el.className = "dist-label";
-      el.textContent = formatDistance(dist);
-
-      const overlay = new kakao.maps.CustomOverlay({
-        position: midPoint,
-        content: el,
-        yAnchor: 1.5
+    function getRows() {
+      return [...document.querySelectorAll('#rowList .form-group')].map(div => {
+        const id = parseInt(div.id.replace('row-', ''));
+        return {
+          id,
+          type:  document.getElementById(`type-${id}`).value.trim(),
+          addr:  document.getElementById(`addr-${id}`).value.trim(),
+          color: rowColors[id] || PALETTE[0],
+        };
       });
-      overlay.setMap(map);
-      measureDistLabels.push(overlay);
     }
 
-    function showTotalDistance() {
-      if (measurePoints.length < 2) return;
-      let total = 0;
-      for (let i = 1; i < measurePoints.length; i++) {
-        total += getDistance(measurePoints[i - 1], measurePoints[i]);
+    // 거리 셀 초기화
+    function resetDistCells() {
+      document.querySelectorAll('.dist-cell').forEach(el => {
+        if (!el.classList.contains('is-main')) {
+          el.innerHTML = '<span class="dc-loading">—</span>';
+        }
+      });
+    }
+
+    // 행 ID로 거리 셀 업데이트
+    function setDistCell(rowId, result) {
+      const cell = document.getElementById(`dist-${rowId}`);
+      if (!cell) return;
+      if (result) {
+        cell.innerHTML = `
+          <span class="dc-time">🕐 ${formatDuration(result.durationSec)}</span>
+          <span class="dc-dist">📍 ${formatDistance(result.distanceMeter)}</span>
+        `;
+      } else {
+        cell.innerHTML = '<span class="dc-loading" style="color:#f4a9a9;">경로없음</span>';
       }
-      document.getElementById("totalDistance").textContent =
-        `총 거리: ${formatDistance(total)}`;
     }
 
-    // Haversine 공식으로 두 좌표 간 거리(m) 계산
-    function getDistance(p1, p2) {
-      const R = 6371000;
-      const toRad = d => d * Math.PI / 180;
-      const dLat = toRad(p2.getLat() - p1.getLat());
-      const dLng = toRad(p2.getLng() - p1.getLng());
-      const a = Math.sin(dLat/2)**2 +
-                Math.cos(toRad(p1.getLat())) * Math.cos(toRad(p2.getLat())) *
-                Math.sin(dLng/2)**2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    function toggleColorPop(e, id) {
+      e.stopPropagation();
+      const pop    = document.getElementById(`pop-${id}`);
+      const isOpen = pop.classList.contains('open');
+      closeAllColorPops();
+      if (!isOpen) pop.classList.add('open');
+    }
+    function closeAllColorPops() {
+      document.querySelectorAll('.color-popup').forEach(p => p.classList.remove('open'));
     }
 
-    function formatDistance(m) {
-      return m >= 1000
-        ? `${(m / 1000).toFixed(2)} km`
-        : `${Math.round(m)} m`;
+    /* ─── 지도 초기화 ─── */
+    function initMap() {
+      map = new kakao.maps.Map(document.getElementById('map'), {
+        center: new kakao.maps.LatLng(37.5665, 126.9780), level: 7
+      });
+      geocoder = new kakao.maps.services.Geocoder();
+      kakao.maps.event.addListener(map, 'click', () => closePopup());
+      document.addEventListener('click', closeAllColorPops);
+      INIT_ROWS.forEach(r => addRow(r));
     }
 
-    /* ───────── 주소 검색 (기존 코드) ───────── */
-
-    function getLongitudeOffset(lat, meters) {
-      const earthRadius = 6378137;
-      const latRad = (Math.PI / 180) * lat;
-      return meters / (Math.cos(latRad) * earthRadius) * (180 / Math.PI);
-    }
-
-    function applyOffset(coords) {
-      const coordKey = `${coords.getLat()},${coords.getLng()}`;
-      const count = offsetMap.get(coordKey) || 0;
-      offsetMap.set(coordKey, count + 1);
-      if (count === 0) return coords;
-      const stepLat = 30 / 111320;
-      const stepLng = getLongitudeOffset(coords.getLat(), 30);
-      const angle = ((count - 1) % 8) * (Math.PI / 4);
-      const radius = Math.ceil(count / 8);
-      return new kakao.maps.LatLng(
-        coords.getLat() + Math.sin(angle) * radius * stepLat,
-        coords.getLng() + Math.cos(angle) * radius * stepLng
-      );
-    }
-
-    function geocodeAddress(geocoder, address) {
+    /* ─── 주소 조회 ─── */
+    function geocodeAddress(addr) {
       return new Promise((resolve) => {
-        geocoder.addressSearch(address, (result, status) => {
+        geocoder.addressSearch(addr, (result, status) => {
           resolve(status === kakao.maps.services.Status.OK
-            ? { lat: result[0].y, lng: result[0].x }
-            : null);
+            ? new kakao.maps.LatLng(result[0].y, result[0].x) : null);
         });
       });
     }
 
     async function searchAddresses() {
-      resetMarkers();
-      const geocoder = new kakao.maps.services.Geocoder();
-      let firstCoords = null;
+      clearMarkers();
+      markerList = [];
+      resetDistCells();
 
-      for (let i = 1; i <= 9; i++) {
-        const address = document.getElementById("addressInput" + i).value.trim();
-        if (!address) continue;
-        const result = await geocodeAddress(geocoder, address);
-        if (!result) { console.error(`"${address}"를 찾을 수 없습니다.`); continue; }
+      const rows      = getRows().filter(r => r.addr);
+      const offsetMap = new Map();
+      const slots     = new Array(rows.length).fill(null);
 
-        let coords = new kakao.maps.LatLng(result.lat, result.lng);
-        if (!firstCoords) { firstCoords = coords; map.setCenter(coords); }
-        coords = applyOffset(coords);
-        const marker = createHtmlMarker(coords, i);
-        existingMarkers.push(marker);
-        marker.setMap(map);
-        clusterer.addMarker(marker);
+      await Promise.all(rows.map((row, idx) =>
+        geocodeAddress(row.addr).then(pos => {
+          if (pos) slots[idx] = { ...row, pos };
+        })
+      ));
+
+      let firstPos = null;
+      for (const slot of slots) {
+        if (!slot) continue;
+        const { pos, type, addr, color } = slot;
+        const label = type || '?';
+        if (!firstPos) { firstPos = pos; map.setCenter(pos); }
+        const displayPos = applyOffset(pos, offsetMap);
+        placeMarker(displayPos, label, addr, color);
+        markerList.push({ rawPos: pos, displayPos, label, addr, color, rowId: slot.id });
       }
     }
 
-    function resetMarkers() {
-      existingMarkers.forEach(marker => marker.setMap(null));
-      clusterer.clear();
-      existingMarkers = [];
-      offsetMap.clear();
+    function applyOffset(pos, offsetMap) {
+      const key   = `${pos.getLat().toFixed(5)},${pos.getLng().toFixed(5)}`;
+      const count = offsetMap.get(key) || 0;
+      offsetMap.set(key, count + 1);
+      if (count === 0) return pos;
+      const stepLat = 30 / 111320;
+      const stepLng = 30 / (111320 * Math.cos(pos.getLat() * Math.PI / 180));
+      const angle   = ((count - 1) % 8) * (Math.PI / 4);
+      const radius  = Math.ceil(count / 8);
+      return new kakao.maps.LatLng(
+        pos.getLat() + Math.sin(angle) * radius * stepLat,
+        pos.getLng() + Math.cos(angle) * radius * stepLng
+      );
     }
 
-    function createHtmlMarker(coords, type) {
-      const el = document.createElement("div");
-      el.className = `marker type${type}`;
-      el.innerText = type === 1 ? "본건" : type <= 4 ? `사례${type - 1}` : `실거래${type - 4}`;
-      return new kakao.maps.CustomOverlay({ position: coords, content: el });
+    function placeMarker(pos, label, addr, color) {
+      const el = document.createElement('div');
+      el.className = 'kakao-marker';
+      el.style.background = color;
+      el.textContent = label;
+      el.onclick = (e) => { e.stopPropagation(); showPopup(pos, label, addr); };
+      const overlay = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1.4 });
+      overlay.setMap(map);
+      markerOverlays.push(overlay);
     }
+
+    function clearMarkers() {
+      markerOverlays.forEach(o => o.setMap(null));
+      markerOverlays = [];
+      closePopup();
+    }
+
+    /* ─── 팝업 ─── */
+    function showPopup(pos, label, addr) {
+      closePopup();
+      const el = document.createElement('div');
+      el.className = 'marker-popup';
+      el.innerHTML = `
+        <div class="pop-close" onclick="closePopup()">×</div>
+        <div class="pop-title">${label}</div>
+        <div class="pop-addr">${addr}</div>
+      `;
+      popupOverlay = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1.7, zIndex: 10 });
+      popupOverlay.setMap(map);
+    }
+    function closePopup() {
+      if (popupOverlay) { popupOverlay.setMap(null); popupOverlay = null; }
+    }
+
+    /* ─── 경로 (OSRM) ─── */
+    async function getOsrmRoute(from, to) {
+      try {
+        const coords = `${from.getLng()},${from.getLat()};${to.getLng()},${to.getLat()}`;
+        const res    = await fetch(`${OSRM}/${coords}?overview=full&geometries=geojson`);
+        const data   = await res.json();
+        if (data.code !== 'Ok' || !data.routes.length) return null;
+        return {
+          durationSec:   Math.round(data.routes[0].duration),
+          distanceMeter: Math.round(data.routes[0].distance),
+          coords:        data.routes[0].geometry.coordinates,
+        };
+      } catch { return null; }
+    }
+
+    async function toggleRoute() {
+      if (isRouteShown) { clearRoute(); return; }
+      if (markerList.length < 2) { alert('주소를 2개 이상 입력 후 조회해주세요.'); return; }
+
+      isRouteShown = true;
+      document.getElementById('routeBtn').textContent = '경로 숨기기';
+      document.getElementById('routeBtn').classList.add('active');
+      document.getElementById('routePanel').style.display = 'block';
+
+      const routeList = document.getElementById('routeList');
+      routeList.innerHTML = '<div style="font-size:11px;color:#888;padding:4px 0;">경로 계산 중...</div>';
+
+      // ── 순차 경로 ──
+      let totalSec = 0, totalMeter = 0;
+      const seqItems = [];
+      for (let i = 0; i < markerList.length - 1; i++) {
+        const color  = ROUTE_COLORS[i % ROUTE_COLORS.length];
+        const result = await getOsrmRoute(markerList[i].rawPos, markerList[i+1].rawPos);
+        if (result) {
+          totalSec   += result.durationSec;
+          totalMeter += result.distanceMeter;
+          const path = result.coords.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng));
+          routePolylines.push(new kakao.maps.Polyline({
+            map, path, strokeWeight: 4, strokeColor: color, strokeOpacity: 0.85, strokeStyle: 'solid'
+          }));
+        }
+        seqItems.push({ from: markerList[i].label, to: markerList[i+1].label, color, result });
+      }
+
+      // ── 본건 기준 거리 → 각 행 dist-cell에 직접 표시 ──
+      const mainPos = markerList[0].rawPos;
+      for (let i = 1; i < markerList.length; i++) {
+        const result = await getOsrmRoute(mainPos, markerList[i].rawPos);
+        setDistCell(markerList[i].rowId, result);
+      }
+
+      // 순차 경로 렌더링
+      routeList.innerHTML = '';
+      seqItems.forEach(({ from, to, color, result }) => {
+        const item = document.createElement('div');
+        item.className = 'route-item';
+        item.innerHTML = result
+          ? `<div class="route-dot" style="background:${color};"></div>
+             <span class="route-seg">${from} → ${to}</span>
+             <span class="route-time">🕐 ${formatDuration(result.durationSec)}</span>
+             <span class="route-dist">📍 ${formatDistance(result.distanceMeter)}</span>`
+          : `<div class="route-dot" style="background:#ccc;"></div>
+             <span class="route-seg" style="color:#aaa;">${from} → ${to}: 경로없음</span>`;
+        routeList.appendChild(item);
+      });
+
+      document.getElementById('routeTotal').innerHTML = `
+        <div class="route-total">
+          <div class="route-total-row">
+            <span class="route-total-label">총 이동시간</span>
+            <span class="route-total-val time">${formatDuration(totalSec)}</span>
+          </div>
+          <div class="route-total-row">
+            <span class="route-total-label">총 이동거리</span>
+            <span class="route-total-val dist">${formatDistance(totalMeter)}</span>
+          </div>
+        </div>`;
+    }
+
+    function clearRoute() {
+      routePolylines.forEach(p => p.setMap(null));
+      routePolylines = [];
+      isRouteShown = false;
+      document.getElementById('routeBtn').textContent = '경로 보기';
+      document.getElementById('routeBtn').classList.remove('active');
+      document.getElementById('routePanel').style.display = 'none';
+      document.getElementById('routeList').innerHTML = '';
+      document.getElementById('routeTotal').innerHTML = '';
+      resetDistCells();
+    }
+
+    function clearAll() {
+      clearMarkers(); clearRoute(); markerList = [];
+    }
+
+    function formatDuration(sec) {
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+      return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+    }
+    function formatDistance(m) { return m >= 1000 ? `${(m/1000).toFixed(1)}km` : `${m}m`; }
+
+    initMap();
   </script>
 </body>
 </html>
