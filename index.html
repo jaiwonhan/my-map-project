@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>물건/유사사례/매매사례 위치도_V7</title>
+  <title>물건/유사사례/매매사례 위치도_v8</title>
   <meta charset="utf-8">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
   <style>
@@ -13,7 +13,7 @@
       position: absolute; top: 20px; left: 20px;
       background: rgba(255,255,255,0.95); padding: 16px;
       border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-      width: 600px; z-index: 10;
+      width: 620px; z-index: 10;
       max-height: calc(100vh - 40px); overflow-y: auto;
     }
     .form-container h1 {
@@ -25,42 +25,64 @@
       display: flex; align-items: center; margin-bottom: 5px;
       position: sticky; top: 34px; background: rgba(255,255,255,0.97); z-index: 1; padding-bottom: 3px;
     }
+    .form-header .col-drag  { width: 16px; margin-right: 4px; flex-shrink: 0; }
     .form-header .col-type  { width: 80px; font-size: 11px; color: #888; margin-right: 6px; flex-shrink: 0; }
     .form-header .col-color { width: 24px; font-size: 11px; color: #888; margin-right: 6px; flex-shrink: 0; text-align: center; }
     .form-header .col-addr  { flex: 1; font-size: 11px; color: #888; margin-right: 6px; }
     .form-header .col-dist  { width: 110px; font-size: 11px; color: #888; flex-shrink: 0; text-align: center; }
     .form-header .col-del   { width: 26px; flex-shrink: 0; }
 
-    .form-group { display: flex; align-items: center; margin-bottom: 5px; }
+    .form-group {
+      display: flex; align-items: center; margin-bottom: 5px;
+      border-radius: 6px; transition: background 0.15s; position: relative;
+    }
+    .form-group.drag-over { background: #eef1ff; outline: 2px dashed #4A6FFF; }
+    .form-group.dragging  { opacity: 0.4; }
+
+    .drag-handle {
+      width: 16px; margin-right: 4px; flex-shrink: 0;
+      color: #ccc; font-size: 14px; cursor: grab;
+      user-select: none; text-align: center; line-height: 1;
+    }
+    .drag-handle:hover { color: #888; }
+    .drag-handle:active { cursor: grabbing; }
+    .drag-handle.fixed  { visibility: hidden; cursor: default; }
 
     .input-type {
       width: 80px; height: 26px; padding: 4px 6px; font-size: 12px;
       border: 1px solid #ccc; border-radius: 4px; margin-right: 6px; flex-shrink: 0; font-family: inherit;
     }
+    .addr-wrap { flex: 1; position: relative; margin-right: 6px; }
     .input-addr {
-      flex: 1; height: 26px; padding: 4px 6px; font-size: 12px;
+      width: 100%; height: 26px; padding: 4px 6px; font-size: 12px;
       border: 1px solid #ccc; border-radius: 4px; font-family: inherit;
-      margin-right: 6px;
     }
     .input-type:focus, .input-addr:focus { outline: none; border-color: #4A6FFF; }
 
-    /* 본건 기준 거리 표시 칸 */
+    .autocomplete-list {
+      display: none; position: absolute; top: 28px; left: 0;
+      width: 100%; background: white; border: 1px solid #ddd;
+      border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 300; max-height: 220px; overflow-y: auto;
+    }
+    .autocomplete-list.open { display: block; }
+    .ac-item {
+      padding: 7px 10px; cursor: pointer; border-bottom: 1px solid #f5f5f5;
+      transition: background 0.1s;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover, .ac-item.active { background: #eef1ff; }
+    .ac-name { font-size: 12px; font-weight: bold; color: #222; }
+    .ac-addr { font-size: 10px; color: #888; margin-top: 2px; }
+
     .dist-cell {
       width: 110px; flex-shrink: 0;
-      display: flex; flex-direction: column; align-items: flex-start;
-      gap: 1px;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
     }
-    .dist-cell .dc-time {
-      font-size: 10px; font-weight: bold; color: #4A6FFF; white-space: nowrap;
-    }
-    .dist-cell .dc-dist {
-      font-size: 10px; font-weight: bold; color: #e8710a; white-space: nowrap;
-    }
-    .dist-cell .dc-loading {
-      font-size: 10px; color: #bbb; white-space: nowrap;
-    }
-    /* 본건(첫 행)은 표시 안 함 */
-    .dist-cell.is-main { visibility: hidden; }
+    .dist-cell .dc-time  { font-size: 10px; font-weight: bold; color: #4A6FFF; white-space: nowrap; }
+    .dist-cell .dc-dist  { font-size: 10px; font-weight: bold; color: #e8710a; white-space: nowrap; }
+    .dist-cell .dc-empty { font-size: 10px; color: #ccc; }
+    .dist-cell.is-main   { visibility: hidden; }
 
     .color-pick {
       width: 22px; height: 22px; border-radius: 50%;
@@ -95,8 +117,7 @@
       width: 100%; padding: 6px; margin-top: 6px;
       background: #f8f9ff; border: 1px dashed #4A6FFF;
       color: #4A6FFF; border-radius: 6px;
-      font-size: 12px; cursor: pointer; font-family: inherit;
-      transition: background 0.15s;
+      font-size: 12px; cursor: pointer; font-family: inherit; transition: background 0.15s;
     }
     .btn-add-row:hover { background: #eef1ff; }
     .btn-add-row:disabled { background: #f5f5f5; border-color: #ccc; color: #bbb; cursor: not-allowed; }
@@ -115,7 +136,6 @@
     .btn-clear { background: #f1f3f4; color: #444; border: 1px solid #ccc; }
     .btn-clear:hover { background: #e0e0e0; }
 
-    /* 경로 패널 — 순차 경로 + 합산만 */
     #routePanel {
       position: absolute; top: 20px; right: 20px;
       background: rgba(255,255,255,0.97); border-radius: 10px;
@@ -130,12 +150,11 @@
     }
     .route-item {
       display: flex; align-items: center;
-      padding: 5px 0; border-bottom: 1px dashed #f0f0f0;
-      font-size: 11px; gap: 6px;
+      padding: 5px 0; border-bottom: 1px dashed #f0f0f0; font-size: 11px; gap: 6px;
     }
     .route-item:last-child { border-bottom: none; }
-    .route-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .route-seg { flex: 1; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .route-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .route-seg  { flex: 1; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .route-time { color: #4A6FFF; font-weight: bold; white-space: nowrap; font-size: 11px; }
     .route-dist { color: #34a853; font-weight: bold; white-space: nowrap; font-size: 11px; }
     .route-total { margin-top: 10px; padding-top: 8px; border-top: 2px solid #eee; font-size: 12px; }
@@ -144,14 +163,13 @@
     .route-total-val.time { color: #4A6FFF; font-weight: bold; }
     .route-total-val.dist { color: #34a853; font-weight: bold; }
 
-    /* 마커 팝업 */
     .marker-popup {
       background: white; border-radius: 8px;
       box-shadow: 0 3px 14px rgba(0,0,0,0.25);
       padding: 10px 14px 10px 12px; font-size: 12px;
       min-width: 160px; max-width: 230px; position: relative;
     }
-    .marker-popup .pop-title { font-weight: bold; font-size: 13px; margin-bottom: 2px; color: #222; padding-right: 16px; }
+    .marker-popup .pop-title { font-weight: bold; font-size: 13px; margin-bottom: 4px; color: #222; padding-right: 16px; }
     .marker-popup .pop-addr  { color: #666; font-size: 11px; white-space: normal; line-height: 1.5; }
     .marker-popup .pop-close {
       position: absolute; top: 7px; right: 9px;
@@ -159,11 +177,9 @@
     }
     .marker-popup .pop-close:hover { color: #333; }
     .marker-popup::after {
-      content: ''; position: absolute;
-      bottom: -8px; left: 50%; transform: translateX(-50%);
+      content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
       border: 8px solid transparent; border-top-color: white; border-bottom: none;
     }
-
     .kakao-marker {
       display: inline-block; padding: 3px 8px;
       border-radius: 5px; border: 1px solid rgba(0,0,0,0.2);
@@ -178,19 +194,18 @@
   <div id="map"></div>
 
   <div class="form-container">
-    <h1>물건 / 유사사례 / 매매사례 위치도_V7</h1>
+    <h1>물건 / 유사사례 / 매매사례 위치도_v8</h1>
     <div class="form-header">
+      <span class="col-drag"></span>
       <span class="col-type">구분</span>
       <span class="col-color">색</span>
-      <span class="col-addr">주소</span>
+      <span class="col-addr">주소 / 지명 검색</span>
       <span class="col-dist">본건 기준 거리</span>
       <span class="col-del"></span>
     </div>
-
     <div id="rowList"></div>
     <div class="row-count-info" id="rowCountInfo"></div>
     <button class="btn-add-row" id="btnAddRow" onclick="addRow()">+ 행 추가</button>
-
     <div class="btn-row">
       <button class="btn btn-primary" onclick="searchAddresses()">주소 조회</button>
       <button class="btn btn-route" id="routeBtn" onclick="toggleRoute()">경로 보기</button>
@@ -221,7 +236,10 @@
 
     let rowIdCounter = 0;
     let rowColors    = {};
-    let rowOrder     = []; // DOM 순서 추적용
+    let dragSrcId    = null;
+    let psService    = null;
+    let acTimers     = {};
+    let acActiveIdx  = {};
 
     let map, geocoder;
     let markerOverlays = [], routePolylines = [], markerList = [];
@@ -244,29 +262,41 @@
 
     function addRow(initData = {}) {
       if (getRowCount() >= MAX_ROWS) return;
-      const id    = ++rowIdCounter;
-      const color = initData.color || PALETTE[0];
+      const id      = ++rowIdCounter;
+      const color   = initData.color || PALETTE[0];
+      const isFirst = getRowCount() === 0;
       rowColors[id] = color;
-
-      const isFirst = getRowCount() === 0; // 본건 여부
 
       const div = document.createElement('div');
       div.className = 'form-group';
-      div.id = `row-${id}`;
+      div.id        = `row-${id}`;
+
+      if (!isFirst) {
+        div.draggable = true;
+        div.addEventListener('dragstart',  (e) => onDragStart(e, id));
+        div.addEventListener('dragend',    ()  => onDragEnd(id));
+        div.addEventListener('dragover',   (e) => onDragOver(e, id));
+        div.addEventListener('dragleave',  ()  => onDragLeave(id));
+        div.addEventListener('drop',       (e) => onDrop(e, id));
+      }
+
       div.innerHTML = `
+        <div class="drag-handle ${isFirst ? 'fixed' : ''}">⠿</div>
         <input class="input-type" type="text" id="type-${id}" placeholder="구분" value="${initData.type || ''}">
         <div class="color-pick" id="cp-${id}" style="background:${color};" onclick="toggleColorPop(event,${id})">
           <div class="color-popup" id="pop-${id}"></div>
         </div>
-        <input class="input-addr" type="text" id="addr-${id}" placeholder="주소를 입력하세요">
+        <div class="addr-wrap">
+          <input class="input-addr" type="text" id="addr-${id}" placeholder="주소 또는 지명 입력" autocomplete="off">
+          <div class="autocomplete-list" id="ac-${id}"></div>
+        </div>
         <div class="dist-cell ${isFirst ? 'is-main' : ''}" id="dist-${id}">
-          <span class="dc-loading">—</span>
+          <span class="dc-empty">—</span>
         </div>
         <button class="btn-del" onclick="deleteRow(${id})" title="행 삭제">×</button>
       `;
       document.getElementById('rowList').appendChild(div);
 
-      // 색상 스와치
       const pop = document.getElementById(`pop-${id}`);
       PALETTE.forEach((c, ci) => {
         const sw = document.createElement('div');
@@ -282,6 +312,11 @@
         pop.appendChild(sw);
       });
 
+      const inputEl = document.getElementById(`addr-${id}`);
+      inputEl.addEventListener('input',   () => onAddrInput(id));
+      inputEl.addEventListener('keydown', (e) => onAddrKeydown(e, id));
+      inputEl.addEventListener('blur',    () => setTimeout(() => closeAc(id), 200));
+
       updateAddBtn();
     }
 
@@ -289,7 +324,10 @@
       const el = document.getElementById(`row-${id}`);
       if (el) el.remove();
       delete rowColors[id];
+      clearTimeout(acTimers[id]);
+      delete acTimers[id];
       updateAddBtn();
+      if (isRouteShown) clearRoute();
     }
 
     function getRows() {
@@ -304,27 +342,129 @@
       });
     }
 
-    // 거리 셀 초기화
-    function resetDistCells() {
-      document.querySelectorAll('.dist-cell').forEach(el => {
-        if (!el.classList.contains('is-main')) {
-          el.innerHTML = '<span class="dc-loading">—</span>';
-        }
+    function getAddrValue(id) {
+      const inputEl = document.getElementById(`addr-${id}`);
+      return (inputEl.dataset.resolvedAddr || inputEl.value).trim();
+    }
+
+    /* ─── 자동완성 ─── */
+    function onAddrInput(id) {
+      // 사용자가 직접 타이핑하면 resolvedAddr 초기화
+      const inputEl = document.getElementById(`addr-${id}`);
+      inputEl.dataset.resolvedAddr = '';
+
+      clearTimeout(acTimers[id]);
+      const val = inputEl.value.trim();
+      if (val.length < 2) { closeAc(id); return; }
+      acTimers[id] = setTimeout(() => searchKeyword(id, val), 300);
+    }
+
+    function searchKeyword(id, keyword) {
+      if (!psService) return;
+      psService.keywordSearch(keyword, (data, status) => {
+        if (status !== kakao.maps.services.Status.OK) { closeAc(id); return; }
+        renderAc(id, data.slice(0, 7));
       });
     }
 
-    // 행 ID로 거리 셀 업데이트
-    function setDistCell(rowId, result) {
-      const cell = document.getElementById(`dist-${rowId}`);
-      if (!cell) return;
-      if (result) {
-        cell.innerHTML = `
-          <span class="dc-time">🕐 ${formatDuration(result.durationSec)}</span>
-          <span class="dc-dist">📍 ${formatDistance(result.distanceMeter)}</span>
+    function renderAc(id, items) {
+      const list = document.getElementById(`ac-${id}`);
+      list.innerHTML = '';
+      acActiveIdx[id] = -1;
+      items.forEach((place) => {
+        const addrText = place.road_address_name || place.address_name;
+        const item = document.createElement('div');
+        item.className = 'ac-item';
+        item.innerHTML = `
+          <div class="ac-name">${place.place_name}</div>
+          <div class="ac-addr">${addrText}</div>
         `;
-      } else {
-        cell.innerHTML = '<span class="dc-loading" style="color:#f4a9a9;">경로없음</span>';
-      }
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          selectAcItem(id, place);
+        });
+        list.appendChild(item);
+      });
+      list.classList.add('open');
+    }
+
+    function selectAcItem(id, place) {
+      const addrText = place.road_address_name || place.address_name;
+      const inputEl  = document.getElementById(`addr-${id}`);
+      inputEl.value  = `${place.place_name} (${addrText})`;
+      inputEl.dataset.resolvedAddr = addrText;
+      closeAc(id);
+    }
+
+    function closeAc(id) {
+      const list = document.getElementById(`ac-${id}`);
+      if (list) { list.classList.remove('open'); list.innerHTML = ''; }
+      acActiveIdx[id] = -1;
+    }
+
+    function closeAllAc() {
+      document.querySelectorAll('.autocomplete-list').forEach(l => {
+        l.classList.remove('open'); l.innerHTML = '';
+      });
+    }
+
+    function onAddrKeydown(e, id) {
+      const list  = document.getElementById(`ac-${id}`);
+      const items = list.querySelectorAll('.ac-item');
+      if (!list.classList.contains('open') || items.length === 0) return;
+      let idx = acActiveIdx[id] ?? -1;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault(); idx = Math.min(idx + 1, items.length - 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault(); idx = Math.max(idx - 1, 0);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (idx >= 0) items[idx].dispatchEvent(new Event('mousedown'));
+        return;
+      } else if (e.key === 'Escape') {
+        closeAc(id); return;
+      } else { return; }
+      items.forEach(i => i.classList.remove('active'));
+      if (idx >= 0) items[idx].classList.add('active');
+      acActiveIdx[id] = idx;
+    }
+
+    /* ─── 드래그 앤 드롭 ─── */
+    function onDragStart(e, id) {
+      dragSrcId = id;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => document.getElementById(`row-${id}`)?.classList.add('dragging'), 0);
+    }
+    function onDragEnd(id) {
+      dragSrcId = null;
+      document.getElementById(`row-${id}`)?.classList.remove('dragging');
+      document.querySelectorAll('.form-group').forEach(r => r.classList.remove('drag-over'));
+    }
+    function onDragOver(e, id) {
+      e.preventDefault();
+      const rows   = [...document.querySelectorAll('#rowList .form-group')];
+      const target = document.getElementById(`row-${id}`);
+      if (target === rows[0]) return;
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.form-group').forEach(r => r.classList.remove('drag-over'));
+      target.classList.add('drag-over');
+    }
+    function onDragLeave(id) {
+      document.getElementById(`row-${id}`)?.classList.remove('drag-over');
+    }
+    function onDrop(e, targetId) {
+      e.preventDefault();
+      if (!dragSrcId || dragSrcId === targetId) return;
+      const list   = document.getElementById('rowList');
+      const rows   = [...list.querySelectorAll('.form-group')];
+      const srcEl  = document.getElementById(`row-${dragSrcId}`);
+      const tgtEl  = document.getElementById(`row-${targetId}`);
+      if (tgtEl === rows[0]) { tgtEl.classList.remove('drag-over'); return; }
+      const srcIdx = rows.indexOf(srcEl);
+      const tgtIdx = rows.indexOf(tgtEl);
+      list.insertBefore(srcEl, srcIdx < tgtIdx ? tgtEl.nextSibling : tgtEl);
+      tgtEl.classList.remove('drag-over');
+      if (isRouteShown) { clearRoute(); resetDistCells(); }
     }
 
     function toggleColorPop(e, id) {
@@ -338,14 +478,35 @@
       document.querySelectorAll('.color-popup').forEach(p => p.classList.remove('open'));
     }
 
+    /* ─── 거리 셀 ─── */
+    function resetDistCells() {
+      document.querySelectorAll('.dist-cell:not(.is-main)').forEach(el => {
+        el.innerHTML = '<span class="dc-empty">—</span>';
+      });
+    }
+    function setDistCell(rowId, result) {
+      const cell = document.getElementById(`dist-${rowId}`);
+      if (!cell) return;
+      cell.innerHTML = result
+        ? `<span class="dc-time">🕐 ${formatDuration(result.durationSec)}</span>
+           <span class="dc-dist">📍 ${formatDistance(result.distanceMeter)}</span>`
+        : '<span class="dc-empty" style="color:#f4a9a9;">경로없음</span>';
+    }
+
     /* ─── 지도 초기화 ─── */
     function initMap() {
       map = new kakao.maps.Map(document.getElementById('map'), {
         center: new kakao.maps.LatLng(37.5665, 126.9780), level: 7
       });
-      geocoder = new kakao.maps.services.Geocoder();
-      kakao.maps.event.addListener(map, 'click', () => closePopup());
-      document.addEventListener('click', closeAllColorPops);
+      geocoder  = new kakao.maps.services.Geocoder();
+      psService = new kakao.maps.services.Places();
+
+      kakao.maps.event.addListener(map, 'click', () => { closePopup(); closeAllAc(); });
+      document.addEventListener('click', (e) => {
+        closeAllColorPops();
+        if (!e.target.closest('.addr-wrap')) closeAllAc();
+      });
+
       INIT_ROWS.forEach(r => addRow(r));
     }
 
@@ -361,28 +522,30 @@
 
     async function searchAddresses() {
       clearMarkers();
-      markerList = [];
+      markerList = []; // ✅ 반드시 초기화
       resetDistCells();
+      if (isRouteShown) clearRoute();
 
-      const rows      = getRows().filter(r => r.addr);
+      const rows      = getRows().filter(r => getAddrValue(r.id));
       const offsetMap = new Map();
       const slots     = new Array(rows.length).fill(null);
 
-      await Promise.all(rows.map((row, idx) =>
-        geocodeAddress(row.addr).then(pos => {
-          if (pos) slots[idx] = { ...row, pos };
-        })
-      ));
+      await Promise.all(rows.map((row, idx) => {
+        const addr = getAddrValue(row.id);
+        return geocodeAddress(addr).then(pos => {
+          if (pos) slots[idx] = { ...row, pos, addr };
+        });
+      }));
 
       let firstPos = null;
       for (const slot of slots) {
         if (!slot) continue;
-        const { pos, type, addr, color } = slot;
+        const { pos, type, addr, color, id } = slot;
         const label = type || '?';
         if (!firstPos) { firstPos = pos; map.setCenter(pos); }
         const displayPos = applyOffset(pos, offsetMap);
         placeMarker(displayPos, label, addr, color);
-        markerList.push({ rawPos: pos, displayPos, label, addr, color, rowId: slot.id });
+        markerList.push({ rawPos: pos, displayPos, label, addr, color, rowId: id });
       }
     }
 
@@ -454,6 +617,18 @@
       if (isRouteShown) { clearRoute(); return; }
       if (markerList.length < 2) { alert('주소를 2개 이상 입력 후 조회해주세요.'); return; }
 
+      // ✅ 중복 rowId 제거
+      markerList = markerList.filter((item, idx, arr) =>
+        arr.findIndex(m => m.rowId === item.rowId) === idx
+      );
+
+      // ✅ 현재 DOM 순서대로 재정렬
+      const currentOrder = [...document.querySelectorAll('#rowList .form-group')]
+        .map(div => parseInt(div.id.replace('row-', '')));
+      markerList.sort((a, b) =>
+        currentOrder.indexOf(a.rowId) - currentOrder.indexOf(b.rowId)
+      );
+
       isRouteShown = true;
       document.getElementById('routeBtn').textContent = '경로 숨기기';
       document.getElementById('routeBtn').classList.add('active');
@@ -462,9 +637,9 @@
       const routeList = document.getElementById('routeList');
       routeList.innerHTML = '<div style="font-size:11px;color:#888;padding:4px 0;">경로 계산 중...</div>';
 
-      // ── 순차 경로 ──
       let totalSec = 0, totalMeter = 0;
       const seqItems = [];
+
       for (let i = 0; i < markerList.length - 1; i++) {
         const color  = ROUTE_COLORS[i % ROUTE_COLORS.length];
         const result = await getOsrmRoute(markerList[i].rawPos, markerList[i+1].rawPos);
@@ -479,14 +654,13 @@
         seqItems.push({ from: markerList[i].label, to: markerList[i+1].label, color, result });
       }
 
-      // ── 본건 기준 거리 → 각 행 dist-cell에 직접 표시 ──
+      // 본건 기준 거리
       const mainPos = markerList[0].rawPos;
       for (let i = 1; i < markerList.length; i++) {
         const result = await getOsrmRoute(mainPos, markerList[i].rawPos);
         setDistCell(markerList[i].rowId, result);
       }
 
-      // 순차 경로 렌더링
       routeList.innerHTML = '';
       seqItems.forEach(({ from, to, color, result }) => {
         const item = document.createElement('div');
@@ -523,11 +697,14 @@
       document.getElementById('routePanel').style.display = 'none';
       document.getElementById('routeList').innerHTML = '';
       document.getElementById('routeTotal').innerHTML = '';
-      resetDistCells();
     }
 
     function clearAll() {
-      clearMarkers(); clearRoute(); markerList = [];
+      clearMarkers(); clearRoute(); resetDistCells();
+      markerList = [];
+      document.getElementById('rowList').innerHTML = '';
+      rowIdCounter = 0; rowColors = {};
+      INIT_ROWS.forEach(r => addRow(r));
     }
 
     function formatDuration(sec) {
