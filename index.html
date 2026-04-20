@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>감정평가 지도 도구</title>
+  <title>지도 도구</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -11,17 +11,17 @@
        공통 변수 & 리셋
     ════════════════════════════════ */
     :root {
-      --bg:      #0d1117;
-      --panel:   #161b22;
-      --border:  rgba(255,255,255,0.08);
-      --accent:  #58a6ff;
-      --accent2: #3fb950;
-      --warn:    #f85149;
-      --text:    #e6edf3;
-      --muted:   #8b949e;
-      --card:    rgba(255,255,255,0.04);
-      --tab1:    #58a6ff;   /* 매매사례 */
-      --tab2:    #3fb950;   /* 지적경계 */
+      --bg:      #f0f2f5;
+      --panel:   #ffffff;
+      --border:  rgba(0,0,0,0.08);
+      --accent:  #2563eb;
+      --accent2: #16a34a;
+      --warn:    #dc2626;
+      --text:    #1f2937;
+      --muted:   #6b7280;
+      --card:    rgba(0,0,0,0.03);
+      --tab1:    #2563eb;   /* 매매사례 */
+      --tab2:    #16a34a;   /* 지적경계 */
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
@@ -40,7 +40,7 @@
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column;
       z-index: 20;
-      box-shadow: 6px 0 32px rgba(0,0,0,0.5);
+      box-shadow: 6px 0 24px rgba(0,0,0,0.12);
     }
 
     /* ── 앱 헤더 ── */
@@ -236,17 +236,17 @@
     /* 자동완성 */
     .autocomplete-list {
       display: none; position: absolute; top: 28px; left: 0;
-      width: 100%; background: #1c2128; border: 1px solid var(--border);
-      border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      width: 100%; background: #ffffff; border: 1px solid var(--border);
+      border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
       z-index: 300; max-height: 200px; overflow-y: auto;
     }
     .autocomplete-list.open { display: block; }
     .ac-item {
-      padding: 6px 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding: 6px 10px; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,0.05);
       transition: background 0.1s;
     }
     .ac-item:last-child { border-bottom: none; }
-    .ac-item:hover, .ac-item.active { background: rgba(88,166,255,0.1); }
+    .ac-item:hover, .ac-item.active { background: rgba(37,99,235,0.07); }
     .ac-name { font-size: 11px; font-weight: 600; color: var(--text); }
     .ac-addr { font-size: 10px; color: var(--muted); margin-top: 1px; }
 
@@ -269,8 +269,8 @@
     .color-pick:hover { border-color: rgba(255,255,255,0.5); }
     .color-popup {
       display: none; position: absolute; top: 24px; left: 0; z-index: 200;
-      background: #1c2128; border: 1px solid var(--border); border-radius: 8px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.4); padding: 6px; gap: 4px;
+      background: #ffffff; border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15); padding: 6px; gap: 4px;
       flex-wrap: wrap; width: 120px;
     }
     .color-popup.open { display: flex; }
@@ -304,8 +304,8 @@
     /* 경로 패널 */
     #routePanel {
       position: absolute; top: 16px; right: 16px;
-      background: rgba(22,27,34,0.97); border: 1px solid var(--border);
-      border-radius: 10px; box-shadow: 0 2px 16px rgba(0,0,0,0.4);
+      background: rgba(255,255,255,0.97); border: 1px solid var(--border);
+      border-radius: 10px; box-shadow: 0 2px 16px rgba(0,0,0,0.12);
       padding: 14px 16px; z-index: 15; width: 270px;
       display: none; max-height: calc(100vh - 40px); overflow-y: auto;
     }
@@ -337,8 +337,8 @@
       cursor: pointer; user-select: none;
     }
     .marker-popup {
-      background: #1c2128; border: 1px solid var(--border); border-radius: 8px;
-      box-shadow: 0 3px 14px rgba(0,0,0,0.4); padding: 10px 14px 10px 12px;
+      background: #ffffff; border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.15); padding: 10px 14px 10px 12px;
       font-size: 11px; min-width: 150px; max-width: 220px; position: relative;
     }
     .marker-popup .pop-title { font-weight: 700; font-size: 12px; margin-bottom: 3px; color: var(--text); padding-right: 16px; }
@@ -350,7 +350,7 @@
     .marker-popup .pop-close:hover { color: var(--text); }
     .marker-popup::after {
       content: ''; position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
-      border: 7px solid transparent; border-top-color: #1c2128; border-bottom: none;
+      border: 7px solid transparent; border-top-color: #ffffff; border-bottom: none;
     }
 
     /* ════════════════════════════════
@@ -389,13 +389,14 @@
       display: flex; flex-direction: column; gap: 5px; z-index: 15;
     }
     .map-btn {
-      background: rgba(22,27,34,0.95); border: 1px solid var(--border);
+      background: rgba(255,255,255,0.97); border: 1px solid var(--border);
       color: var(--text); padding: 6px 11px; border-radius: 7px;
       font-size: 10px; cursor: pointer; font-family: inherit;
       backdrop-filter: blur(8px); transition: all 0.15s; white-space: nowrap;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.1);
     }
     .map-btn:hover { border-color: var(--accent2); color: var(--accent2); }
-    .map-btn.active { background: rgba(63,185,80,0.15); border-color: var(--accent2); color: var(--accent2); }
+    .map-btn.active { background: rgba(22,163,74,0.1); border-color: var(--accent2); color: var(--accent2); }
   </style>
 </head>
 <body>
@@ -408,7 +409,7 @@
   <div class="app-header">
     <div class="app-title">
       <div class="logo">🏠</div>
-      감정평가 지도 도구
+      지도 도구
     </div>
   </div>
 
@@ -464,13 +465,10 @@
 
     <div class="opts-row">
       <div class="opt on" id="optBound" onclick="toggleOpt('optBound')">
-        <div class="d" style="background:#58a6ff"></div> 필지 경계
+        <div class="d" style="background:#2563eb"></div> 중심 마커
       </div>
       <div class="opt on" id="optLabel" onclick="toggleOpt('optLabel')">
         <div class="d" style="background:#f59e0b"></div> 지번 표기
-      </div>
-      <div class="opt" id="optFill" onclick="toggleOpt('optFill')">
-        <div class="d" style="background:#3fb950"></div> 영역 채우기
       </div>
       <div class="opt on" id="optHull" onclick="toggleOpt('optHull')">
         <div class="d" style="background:#ec4899"></div> 전체 외곽선
@@ -1089,51 +1087,22 @@ function toggleSatellite() {
   applyMapLayers();
 }
 
-/* VWORLD API */
-async function fetchParcel(addr) {
+/* ── VWORLD 주소 → 좌표 (주소검색 API, CORS 허용됨) ── */
+async function fetchCoordFromVworld(addr) {
   const encAddr = encodeURIComponent(addr);
-  const addrUrl = `https://api.vworld.kr/req/address?service=address&request=getcoord&version=2.0&crs=epsg:4326&address=${encAddr}&refine=true&simple=false&format=json&type=parcel&key=${VWORLD_KEY}`;
-  let lat = null, lng = null;
+  const url = `https://api.vworld.kr/req/address?service=address&request=getcoord&version=2.0` +
+    `&crs=epsg:4326&address=${encAddr}&refine=true&simple=false&format=json&type=parcel&key=${VWORLD_KEY}`;
   try {
-    const r = await fetch(addrUrl);
+    const r = await fetch(url);
     const d = await r.json();
     if (d.response?.status === 'OK') {
-      lng = parseFloat(d.response.result.point.x);
-      lat = parseFloat(d.response.result.point.y);
+      return { lat: parseFloat(d.response.result.point.y), lng: parseFloat(d.response.result.point.x) };
     }
   } catch(e) {}
-
-  if (lat && lng) {
-    const poly = await fetchParcelByCoord(lng, lat);
-    if (poly) return { addr, poly, lat, lng };
-  }
-
-  const kakaoPos = await kakaoGeocodeSimple(addr);
-  if (kakaoPos) {
-    const poly = await fetchParcelByCoord(kakaoPos.lng, kakaoPos.lat);
-    return { addr, poly: poly || null, lat: kakaoPos.lat, lng: kakaoPos.lng };
-  }
   return null;
 }
 
-async function fetchParcelByCoord(lng, lat) {
-  const delta = 0.00005;
-  const bbox  = `${lng-delta},${lat-delta},${lng+delta},${lat+delta}`;
-  const makeUrl = (typename) => `${VWORLD_WFS}?` + new URLSearchParams({
-    service: 'WFS', version: '1.1.0', request: 'GetFeature',
-    typename, bbox: `${bbox},EPSG:4326`, outputFormat: 'application/json',
-    srsname: 'EPSG:4326', key: VWORLD_KEY, maxFeatures: 5,
-  });
-  for (const layer of ['lt_c_landinfobasic', 'lp_pa_cbnd_bubun']) {
-    try {
-      const r = await fetch(makeUrl(layer));
-      const d = await r.json();
-      if (d.features?.length > 0) return d.features[0].geometry;
-    } catch(e) {}
-  }
-  return null;
-}
-
+/* ── 카카오 지오코딩 fallback ── */
 function kakaoGeocodeSimple(addr) {
   return new Promise(resolve => {
     geocoder.addressSearch(addr, (res, st) => {
@@ -1149,16 +1118,47 @@ function kakaoGeocodeSimple(addr) {
   });
 }
 
-function geoJsonToLatLng(geometry) {
-  if (!geometry) return null;
-  const toRings = (coords) => coords.map(ring =>
-    ring.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng))
-  );
-  if (geometry.type === 'Polygon')      return toRings(geometry.coordinates);
-  if (geometry.type === 'MultiPolygon') return geometry.coordinates.flatMap(p => toRings(p));
-  return null;
+/* ── 주소 → 좌표 (VWORLD 우선, 카카오 fallback) ── */
+async function resolveCoord(addr) {
+  const pos = await fetchCoordFromVworld(addr);
+  if (pos) return pos;
+  return await kakaoGeocodeSimple(addr);
 }
 
+/* ── VWORLD WMS 타일 레이어 (지적도 경계선 이미지) ── */
+let vworldWmsTile = null;
+function addVworldWmsLayer() {
+  if (vworldWmsTile) return;
+  // VWORLD 연속지적도 WMS를 카카오맵 TileLayer로 추가
+  // WMS GetMap을 타일 URL 패턴으로 변환
+  vworldWmsTile = new kakao.maps.TileLayer(
+    (x, y, z) => {
+      // 타일 좌표 → EPSG:3857 bbox 계산
+      const n = Math.pow(2, z);
+      const west  = (x / n) * 360 - 180;
+      const east  = ((x + 1) / n) * 360 - 180;
+      const latN  = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+      const latS  = Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + 1) / n))) * 180 / Math.PI;
+      // EPSG:3857 변환
+      const toM = (lng, lat) => {
+        const x = lng * 20037508.34 / 180;
+        const y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
+        return `${x},${y}`;
+      };
+      const bbox = `${toM(west, latS)},${toM(east, latN)}`;
+      return `https://api.vworld.kr/req/wms?service=WMS&version=1.3.0&request=GetMap` +
+        `&layers=LP_PA_CBND_BUBUN&styles=&crs=EPSG:3857&bbox=${bbox}` +
+        `&width=256&height=256&format=image/png&transparent=true&key=${VWORLD_KEY}`;
+    },
+    { opacity: 0.85 }
+  );
+  vworldWmsTile.setMap(map);
+}
+function removeVworldWmsLayer() {
+  if (vworldWmsTile) { vworldWmsTile.setMap(null); vworldWmsTile = null; }
+}
+
+/* ── 검색 실행 ── */
 async function doCadSearch() {
   const addrs = getCadAddrs();
   if (addrs.length === 0) { alert('지번을 입력해주세요.'); return; }
@@ -1168,7 +1168,14 @@ async function doCadSearch() {
   document.getElementById('btnCadSearch').disabled = true;
   document.getElementById('cadResultArea').innerHTML = '';
 
-  const results  = [];
+  // VWORLD WMS 지적도 레이어 활성화
+  addVworldWmsLayer();
+  // 카카오 지적편집도도 함께 켜기
+  isCadastral = true;
+  document.getElementById('btnCadastral').classList.add('active');
+  applyMapLayers();
+
+  const results   = [];
   const allCoords = [];
 
   for (let i = 0; i < addrs.length; i++) {
@@ -1176,58 +1183,68 @@ async function doCadSearch() {
     document.getElementById('cadProgBar').style.width = pct + '%';
     document.getElementById('cadProgTxt').textContent = `조회 중... (${i+1}/${addrs.length})`;
 
-    const result = await fetchParcel(addrs[i]);
-    results.push({ addr: addrs[i], result, idx: i+1 });
+    const pos = await resolveCoord(addrs[i]);
+    results.push({ addr: addrs[i], pos, idx: i+1 });
 
-    if (result) {
-      if (result.poly && isOpt('optBound')) {
-        const rings = geoJsonToLatLng(result.poly);
-        if (rings) {
-          const poly = new kakao.maps.Polygon({
-            map, path: rings,
-            strokeWeight: 2, strokeColor: cadSelColor, strokeOpacity: 0.9,
-            fillColor: isOpt('optFill') ? cadSelColor : 'transparent',
-            fillOpacity: isOpt('optFill') ? 0.15 : 0,
-          });
-          cadPolygons.push(poly);
-          rings.forEach(ring => ring.forEach(p => allCoords.push(p)));
-        }
-      }
+    if (pos) {
+      const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
+      allCoords.push(latlng);
+
+      // 마커 (번호 + 지번 끝자리)
       if (isOpt('optLabel')) {
-        const pos = new kakao.maps.LatLng(result.lat, result.lng);
-        const el  = document.createElement('div');
+        const el = document.createElement('div');
         el.style.cssText = `
           background:${cadSelColor}; color:#fff; font-size:10px; font-weight:700;
-          padding:2px 6px; border-radius:4px; white-space:nowrap;
-          box-shadow:0 1px 4px rgba(0,0,0,0.4); font-family:'Noto Sans KR',sans-serif;
+          padding:3px 7px; border-radius:4px; white-space:nowrap; cursor:pointer;
+          box-shadow:0 2px 6px rgba(0,0,0,0.25); font-family:'Noto Sans KR',sans-serif;
+          border: 1.5px solid rgba(255,255,255,0.6);
         `;
         el.textContent = `${i+1}. ${addrs[i].split(' ').slice(-1)[0]}`;
-        const ov = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1.5 });
+        const ov = new kakao.maps.CustomOverlay({ position: latlng, content: el, yAnchor: 1.6 });
         ov.setMap(map);
         cadOverlays.push(ov);
-        if (!result.poly) allCoords.push(pos);
+      }
+
+      // 중심 점 마커
+      if (isOpt('optBound')) {
+        const dot = document.createElement('div');
+        dot.style.cssText = `
+          width:10px; height:10px; border-radius:50%;
+          background:${cadSelColor}; border:2px solid #fff;
+          box-shadow:0 1px 4px rgba(0,0,0,0.3);
+        `;
+        const dotOv = new kakao.maps.CustomOverlay({ position: latlng, content: dot, yAnchor: 0.5 });
+        dotOv.setMap(map);
+        cadOverlays.push(dotOv);
       }
     }
-    renderCadItem(addrs[i], result, i+1);
-    await sleep(120);
+
+    renderCadItem(addrs[i], pos, i+1);
+    await sleep(100);
   }
 
-  // Convex Hull 외곽선
+  // 전체 외곽선 (Convex Hull)
   if (isOpt('optHull') && allCoords.length >= 3) {
     const pts  = allCoords.map(p => [p.getLng(), p.getLat()]);
     const hull = convexHull(pts);
     const hll  = hull.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng));
     cadHullPoly = new kakao.maps.Polygon({
       map, path: hll,
-      strokeWeight: 3, strokeColor: '#ec4899', strokeOpacity: 0.9, strokeStyle: 'dashed',
-      fillColor: 'transparent', fillOpacity: 0,
+      strokeWeight: 3, strokeColor: cadSelColor, strokeOpacity: 0.9, strokeStyle: 'dashed',
+      fillColor: cadSelColor, fillOpacity: 0.05,
+    });
+  } else if (isOpt('optHull') && allCoords.length === 2) {
+    cadHullPoly = new kakao.maps.Polyline({
+      map, path: allCoords,
+      strokeWeight: 3, strokeColor: cadSelColor, strokeOpacity: 0.9, strokeStyle: 'dashed',
     });
   }
 
+  // 지도 범위 맞춤
   if (allCoords.length > 0) {
     const bounds = new kakao.maps.LatLngBounds();
     allCoords.forEach(p => bounds.extend(p));
-    map.setBounds(bounds, 80);
+    map.setBounds(bounds, 100);
   }
 
   document.getElementById('cadProgArea').style.display = 'none';
@@ -1235,7 +1252,7 @@ async function doCadSearch() {
   showCadStats(results);
 }
 
-function renderCadItem(addr, result, idx) {
+function renderCadItem(addr, pos, idx) {
   const area = document.getElementById('cadResultArea');
   if (idx === 1) {
     area.innerHTML = `<div class="res-hdr">
@@ -1243,19 +1260,18 @@ function renderCadItem(addr, result, idx) {
       <span class="res-hdr-cnt" id="cadResCnt" style="color:var(--accent2)">0개 성공</span>
     </div>`;
   }
-  const ok      = !!result;
-  const hasPoly = result?.poly;
-  const item    = document.createElement('div');
+  const ok   = !!pos;
+  const item = document.createElement('div');
   item.className = 'res-item' + (ok ? '' : ' fail');
   item.innerHTML = `
-    <div class="ri-dot" style="background:${ok ? cadSelColor : '#6b7280'}"></div>
+    <div class="ri-dot" style="background:${ok ? cadSelColor : '#9ca3af'}"></div>
     <div class="ri-body">
       <div class="ri-addr">${ok ? addr : addr + ' (조회 실패)'}</div>
-      <div class="ri-sub">${ok ? (hasPoly ? '✅ 필지 경계 획득' : '⚠️ 좌표만 (경계 없음)') : '❌ 조회 실패'}</div>
+      <div class="ri-sub">${ok ? '✅ 지도에 마커 표시됨 (배경 지적도로 경계 확인)' : '❌ 주소 조회 실패'}</div>
     </div>
     <span class="ri-idx">${idx}</span>
   `;
-  if (ok) item.onclick = () => map.panTo(new kakao.maps.LatLng(result.lat, result.lng));
+  if (ok) item.onclick = () => map.panTo(new kakao.maps.LatLng(pos.lat, pos.lng));
   area.appendChild(item);
   const cnt = document.querySelectorAll('#cadResultArea .res-item:not(.fail)').length;
   const el  = document.getElementById('cadResCnt');
@@ -1263,15 +1279,14 @@ function renderCadItem(addr, result, idx) {
 }
 
 function showCadStats(results) {
-  const ok   = results.filter(r => r.result).length;
-  const poly = results.filter(r => r.result?.poly).length;
+  const ok   = results.filter(r => r.pos).length;
   const fail = results.length - ok;
   document.getElementById('cadStatsArea').style.display = 'block';
   document.getElementById('cadStatGrid').innerHTML = `
     <div class="stat-card"><div class="stat-lbl">입력</div>
       <div class="stat-val">${results.length}<span class="stat-unit">개</span></div></div>
-    <div class="stat-card"><div class="stat-lbl">경계 획득</div>
-      <div class="stat-val" style="color:var(--accent2)">${poly}<span class="stat-unit">개</span></div></div>
+    <div class="stat-card"><div class="stat-lbl">성공</div>
+      <div class="stat-val" style="color:var(--accent2)">${ok}<span class="stat-unit">개</span></div></div>
     <div class="stat-card"><div class="stat-lbl">실패</div>
       <div class="stat-val" style="color:${fail>0?'var(--warn)':'var(--muted)'}">${fail}<span class="stat-unit">개</span></div></div>
   `;
@@ -1281,6 +1296,7 @@ function clearCad(clearRows = true) {
   cadPolygons.forEach(p => p.setMap(null)); cadPolygons = [];
   cadOverlays.forEach(o => o.setMap(null)); cadOverlays = [];
   if (cadHullPoly) { cadHullPoly.setMap(null); cadHullPoly = null; }
+  removeVworldWmsLayer();
   if (clearRows) {
     document.getElementById('addrList').innerHTML = '';
     cadRowId = 0;
