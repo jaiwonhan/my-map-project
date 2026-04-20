@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>지도 도구</title>
-  <!-- Draft_v.0.1 -->
+  <!-- Draft_v.0.2 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -466,10 +466,13 @@
 
     <div class="opts-row">
       <div class="opt on" id="optBound" onclick="toggleOpt('optBound')">
-        <div class="d" style="background:#2563eb"></div> 중심 마커
+        <div class="d" style="background:#2563eb"></div> 필지 경계
       </div>
       <div class="opt on" id="optLabel" onclick="toggleOpt('optLabel')">
         <div class="d" style="background:#f59e0b"></div> 지번 표기
+      </div>
+      <div class="opt" id="optFill" onclick="toggleOpt('optFill')">
+        <div class="d" style="background:#16a34a"></div> 영역 채우기
       </div>
       <div class="opt on" id="optHull" onclick="toggleOpt('optHull')">
         <div class="d" style="background:#ec4899"></div> 전체 외곽선
@@ -1111,47 +1114,70 @@ function resolveCoord(addr) {
   });
 }
 
-/* ── VWORLD WMS 타일 레이어 (지적도 경계선 이미지) ── */
-let vworldWmsTile = null;
-function addVworldWmsLayer() {
-  if (vworldWmsTile) return;
-  // VWORLD 연속지적도 WMS를 카카오맵 TileLayer로 추가
-  // WMS GetMap을 타일 URL 패턴으로 변환
-  vworldWmsTile = new kakao.maps.TileLayer(
-    (x, y, z) => {
-      // 타일 좌표 → EPSG:3857 bbox 계산
-      const n = Math.pow(2, z);
-      const west  = (x / n) * 360 - 180;
-      const east  = ((x + 1) / n) * 360 - 180;
-      const latN  = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
-      const latS  = Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + 1) / n))) * 180 / Math.PI;
-      // EPSG:3857 변환
-      const toM = (lng, lat) => {
-        const x = lng * 20037508.34 / 180;
-        const y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180;
-        return `${x},${y}`;
-      };
-      const bbox = `${toM(west, latS)},${toM(east, latN)}`;
-      return `https://api.vworld.kr/req/wms?service=WMS&version=1.3.0&request=GetMap` +
-        `&layers=LP_PA_CBND_BUBUN&styles=&crs=EPSG:3857&bbox=${bbox}` +
-        `&width=256&height=256&format=image/png&transparent=true&key=${VWORLD_KEY}`;
-    },
-    { opacity: 0.85 }
-  );
-  vworldWmsTile.setMap(map);
-}
-function removeVworldWmsLayer() {
-  if (vworldWmsTile) { vworldWmsTile.setMap(null); vworldWmsTile = null; }
+/* ── CORS 프록시 목록 (순서대로 시도) ── */
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+  'https://proxy.cors.sh/',
+];
+
+/* ── CORS 프록시를 통한 fetch ── */
+async function fetchWithProxy(url) {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim().startsWith('{')) return JSON.parse(text);
+      }
+    } catch(e) { /* 다음 프록시 시도 */ }
+  }
+  return null;
 }
 
-/* ── 검색 실행 ── */
+/* ── VWORLD WFS로 필지 경계 폴리곤 조회 ── */
+async function fetchParcelByCoord(lng, lat) {
+  const delta = 0.0003;
+  const bbox  = (lng-delta) + ',' + (lat-delta) + ',' + (lng+delta) + ',' + (lat+delta);
+  // 레이어 우선순위로 시도
+  const layers = ['lp_pa_cbnd_bubun', 'lt_c_landinfobasic'];
+  for (const layer of layers) {
+    const wfsUrl = 'https://api.vworld.kr/req/wfs?service=WFS&version=2.0.0&request=GetFeature'
+      + '&typename=' + layer
+      + '&bbox=' + bbox + ',EPSG:4326'
+      + '&outputFormat=application/json'
+      + '&srsname=EPSG:4326'
+      + '&maxFeatures=5'
+      + '&key=' + VWORLD_KEY;
+    const data = await fetchWithProxy(wfsUrl);
+    if (data && data.features && data.features.length > 0) {
+      return data.features[0].geometry;
+    }
+  }
+  return null;
+}
+
+/* ── GeoJSON 좌표 → 카카오 LatLng 배열 ── */
+function geoJsonToLatLng(geometry) {
+  if (!geometry) return null;
+  const toRings = function(coords) {
+    return coords.map(function(ring) {
+      return ring.map(function(c) { return new kakao.maps.LatLng(c[1], c[0]); });
+    });
+  };
+  if (geometry.type === 'Polygon')      return toRings(geometry.coordinates);
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.reduce(function(acc, p) { return acc.concat(toRings(p)); }, []);
+  return null;
+}
+
+/* ── 검색 실행 (Draft_v.0.2 - CORS 프록시로 WFS 필지경계 복원) ── */
 async function doCadSearch() {
   const addrs = getCadAddrs();
   if (addrs.length === 0) { alert('지번을 입력해주세요.'); return; }
 
   // 상태 초기화
-  cadOverlays.forEach(o => o.setMap(null)); cadOverlays = [];
-  cadPolygons.forEach(p => p.setMap(null)); cadPolygons = [];
+  cadOverlays.forEach(function(o){ o.setMap(null); }); cadOverlays = [];
+  cadPolygons.forEach(function(p){ p.setMap(null); }); cadPolygons = [];
   if (cadHullPoly) { cadHullPoly.setMap(null); cadHullPoly = null; }
 
   document.getElementById('cadResultArea').innerHTML = '';
@@ -1160,78 +1186,99 @@ async function doCadSearch() {
   document.getElementById('cadProgArea').style.display = 'block';
   document.getElementById('btnCadSearch').disabled = true;
 
-  // 지적편집도 레이어 켜기
+  // 카카오 지적편집도 배경 레이어 켜기
   isCadastral = true;
   document.getElementById('btnCadastral').classList.add('active');
   applyMapLayers();
-  addVworldWmsLayer();
 
   const results   = [];
   const allCoords = [];
 
-  for (let i = 0; i < addrs.length; i++) {
+  for (var i = 0; i < addrs.length; i++) {
     document.getElementById('cadProgBar').style.width = Math.round(((i+1)/addrs.length)*100) + '%';
     document.getElementById('cadProgTxt').textContent = '조회 중... (' + (i+1) + '/' + addrs.length + ') ' + addrs[i];
 
-    let pos = null;
-    try {
-      pos = await resolveCoord(addrs[i]);
-    } catch(e) { pos = null; }
+    // 1단계: 카카오로 좌표 조회
+    var pos = null;
+    try { pos = await resolveCoord(addrs[i]); } catch(e) { pos = null; }
 
-    results.push({ addr: addrs[i], pos });
+    // 2단계: 좌표로 VWORLD WFS 필지 경계 조회 (CORS 프록시 경유)
+    var geometry = null;
+    if (pos) {
+      try { geometry = await fetchParcelByCoord(pos.lng, pos.lat); } catch(e) { geometry = null; }
+    }
+
+    results.push({ addr: addrs[i], pos: pos, geometry: geometry });
 
     if (pos) {
-      const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
-      allCoords.push(latlng);
+      var latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
+      var ringCoords = geometry ? geoJsonToLatLng(geometry) : null;
 
+      // 필지 경계 폴리곤 (WFS 성공 시)
+      if (ringCoords && isOpt('optBound')) {
+        var poly = new kakao.maps.Polygon({
+          map: map,
+          path: ringCoords,
+          strokeWeight: 2,
+          strokeColor: cadSelColor,
+          strokeOpacity: 0.95,
+          fillColor: isOpt('optFill') ? cadSelColor : 'transparent',
+          fillOpacity: isOpt('optFill') ? 0.15 : 0,
+        });
+        cadPolygons.push(poly);
+        ringCoords.forEach(function(ring){ ring.forEach(function(p){ allCoords.push(p); }); });
+      } else {
+        // WFS 실패 시 점 마커로 대체
+        allCoords.push(latlng);
+        if (isOpt('optBound')) {
+          var dot = document.createElement('div');
+          dot.style.cssText = 'width:10px;height:10px;border-radius:50%;background:' + cadSelColor + ';border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
+          var dotOv = new kakao.maps.CustomOverlay({ position: latlng, content: dot, yAnchor: 0.5 });
+          dotOv.setMap(map);
+          cadOverlays.push(dotOv);
+        }
+      }
+
+      // 지번 레이블
       if (isOpt('optLabel')) {
-        const el = document.createElement('div');
-        el.style.cssText = 'background:' + cadSelColor + ';color:#fff;font-size:10px;font-weight:700;' +
-          'padding:3px 7px;border-radius:4px;white-space:nowrap;cursor:pointer;' +
-          'box-shadow:0 2px 6px rgba(0,0,0,0.25);font-family:Noto Sans KR,sans-serif;' +
-          'border:1.5px solid rgba(255,255,255,0.6);';
+        var el = document.createElement('div');
+        el.style.cssText = 'background:' + cadSelColor + ';color:#fff;font-size:10px;font-weight:700;'
+          + 'padding:3px 7px;border-radius:4px;white-space:nowrap;cursor:pointer;'
+          + 'box-shadow:0 2px 6px rgba(0,0,0,0.25);font-family:Noto Sans KR,sans-serif;'
+          + 'border:1.5px solid rgba(255,255,255,0.6);';
         el.textContent = (i+1) + '. ' + addrs[i].split(' ').slice(-1)[0];
-        const ov = new kakao.maps.CustomOverlay({ position: latlng, content: el, yAnchor: 1.6 });
+        var ov = new kakao.maps.CustomOverlay({ position: latlng, content: el, yAnchor: 1.8 });
         ov.setMap(map);
         cadOverlays.push(ov);
       }
-
-      if (isOpt('optBound')) {
-        const dot = document.createElement('div');
-        dot.style.cssText = 'width:10px;height:10px;border-radius:50%;' +
-          'background:' + cadSelColor + ';border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
-        const dotOv = new kakao.maps.CustomOverlay({ position: latlng, content: dot, yAnchor: 0.5 });
-        dotOv.setMap(map);
-        cadOverlays.push(dotOv);
-      }
     }
 
-    renderCadItem(addrs[i], pos, i+1);
-    await new Promise(r => setTimeout(r, 50));
+    renderCadItem(addrs[i], pos, geometry, i+1);
+    await new Promise(function(r){ setTimeout(r, 80); });
   }
 
-  // 전체 외곽선
+  // 전체 외곽선 (Convex Hull)
   if (isOpt('optHull') && allCoords.length >= 3) {
-    const pts  = allCoords.map(p => [p.getLng(), p.getLat()]);
-    const hull = convexHull(pts);
-    const hll  = hull.map(function(c){ return new kakao.maps.LatLng(c[1], c[0]); });
+    var pts  = allCoords.map(function(p){ return [p.getLng(), p.getLat()]; });
+    var hull = convexHull(pts);
+    var hll  = hull.map(function(c){ return new kakao.maps.LatLng(c[1], c[0]); });
     cadHullPoly = new kakao.maps.Polygon({
-      map, path: hll,
-      strokeWeight: 3, strokeColor: cadSelColor, strokeOpacity: 0.9, strokeStyle: 'dashed',
-      fillColor: cadSelColor, fillOpacity: 0.06,
+      map: map, path: hll,
+      strokeWeight: 3, strokeColor: '#ec4899', strokeOpacity: 0.9, strokeStyle: 'dashed',
+      fillColor: '#ec4899', fillOpacity: 0.04,
     });
   } else if (isOpt('optHull') && allCoords.length === 2) {
     cadHullPoly = new kakao.maps.Polyline({
-      map, path: allCoords,
-      strokeWeight: 3, strokeColor: cadSelColor, strokeOpacity: 0.9, strokeStyle: 'dashed',
+      map: map, path: allCoords,
+      strokeWeight: 3, strokeColor: '#ec4899', strokeOpacity: 0.9, strokeStyle: 'dashed',
     });
   }
 
   // 지도 범위 맞춤
   if (allCoords.length > 0) {
-    const bounds = new kakao.maps.LatLngBounds();
+    var bounds = new kakao.maps.LatLngBounds();
     allCoords.forEach(function(p){ bounds.extend(p); });
-    map.setBounds(bounds, 100);
+    map.setBounds(bounds, 80);
   }
 
   document.getElementById('cadProgArea').style.display = 'none';
@@ -1239,50 +1286,53 @@ async function doCadSearch() {
   showCadStats(results);
 }
 
-function renderCadItem(addr, pos, idx) {
-  const area = document.getElementById('cadResultArea');
+function renderCadItem(addr, pos, geometry, idx) {
+  var area = document.getElementById('cadResultArea');
   if (idx === 1) {
-    area.innerHTML = `<div class="res-hdr">
-      <span class="res-hdr-lbl">조회 결과</span>
-      <span class="res-hdr-cnt" id="cadResCnt" style="color:var(--accent2)">0개 성공</span>
-    </div>`;
+    area.innerHTML = '<div class="res-hdr">'
+      + '<span class="res-hdr-lbl">조회 결과</span>'
+      + '<span class="res-hdr-cnt" id="cadResCnt" style="color:var(--accent2)">0개 성공</span>'
+      + '</div>';
   }
-  const ok   = !!pos;
-  const item = document.createElement('div');
+  var ok  = !!pos;
+  var sub = !ok
+    ? '❌ 주소 조회 실패'
+    : geometry
+      ? '✅ 필지 경계 획득'
+      : '⚠️ 경계 없음 (마커만 표시)';
+  var item = document.createElement('div');
   item.className = 'res-item' + (ok ? '' : ' fail');
-  item.innerHTML = `
-    <div class="ri-dot" style="background:${ok ? cadSelColor : '#9ca3af'}"></div>
-    <div class="ri-body">
-      <div class="ri-addr">${ok ? addr : addr + ' (조회 실패)'}</div>
-      <div class="ri-sub">${ok ? '✅ 지도에 마커 표시됨 (배경 지적도로 경계 확인)' : '❌ 주소 조회 실패'}</div>
-    </div>
-    <span class="ri-idx">${idx}</span>
-  `;
-  if (ok) item.onclick = () => map.panTo(new kakao.maps.LatLng(pos.lat, pos.lng));
+  item.innerHTML = '<div class="ri-dot" style="background:' + (ok ? cadSelColor : '#9ca3af') + '"></div>'
+    + '<div class="ri-body">'
+    + '<div class="ri-addr">' + (ok ? addr : addr + ' (조회 실패)') + '</div>'
+    + '<div class="ri-sub">' + sub + '</div>'
+    + '</div>'
+    + '<span class="ri-idx">' + idx + '</span>';
+  if (ok) item.onclick = function(){ map.panTo(new kakao.maps.LatLng(pos.lat, pos.lng)); };
   area.appendChild(item);
-  const cnt = document.querySelectorAll('#cadResultArea .res-item:not(.fail)').length;
-  const el  = document.getElementById('cadResCnt');
-  if (el) el.textContent = `${cnt}개 성공`;
+  var cnt = document.querySelectorAll('#cadResultArea .res-item:not(.fail)').length;
+  var el  = document.getElementById('cadResCnt');
+  if (el) el.textContent = cnt + '개 성공';
 }
 
 function showCadStats(results) {
-  const ok   = results.filter(function(r){ return !!r.pos; }).length;
-  const fail = results.length - ok;
+  var ok   = results.filter(function(r){ return !!r.pos; }).length;
+  var poly = results.filter(function(r){ return !!r.geometry; }).length;
+  var fail = results.length - ok;
   document.getElementById('cadStatsArea').style.display = 'block';
   document.getElementById('cadStatGrid').innerHTML =
-    '<div class="stat-card"><div class="stat-lbl">입력</div>' +
-    '<div class="stat-val">' + results.length + '<span class="stat-unit">개</span></div></div>' +
-    '<div class="stat-card"><div class="stat-lbl">성공</div>' +
-    '<div class="stat-val" style="color:var(--accent2)">' + ok + '<span class="stat-unit">개</span></div></div>' +
-    '<div class="stat-card"><div class="stat-lbl">실패</div>' +
-    '<div class="stat-val" style="color:' + (fail>0?'var(--warn)':'var(--muted)') + '">' + fail + '<span class="stat-unit">개</span></div></div>';
+    '<div class="stat-card"><div class="stat-lbl">입력</div>'
+    + '<div class="stat-val">' + results.length + '<span class="stat-unit">개</span></div></div>'
+    + '<div class="stat-card"><div class="stat-lbl">경계 획득</div>'
+    + '<div class="stat-val" style="color:var(--accent2)">' + poly + '<span class="stat-unit">개</span></div></div>'
+    + '<div class="stat-card"><div class="stat-lbl">실패</div>'
+    + '<div class="stat-val" style="color:' + (fail>0?'var(--warn)':'var(--muted)') + '">' + fail + '<span class="stat-unit">개</span></div></div>';
 }
 
 function clearCad(clearRows = true) {
   cadPolygons.forEach(p => p.setMap(null)); cadPolygons = [];
   cadOverlays.forEach(o => o.setMap(null)); cadOverlays = [];
   if (cadHullPoly) { cadHullPoly.setMap(null); cadHullPoly = null; }
-  removeVworldWmsLayer();
   if (clearRows) {
     document.getElementById('addrList').innerHTML = '';
     cadRowId = 0;
