@@ -481,11 +481,22 @@
       <button class="btn-sub" onclick="clearCad()">초기화</button>
     </div>
 
-        <div class="prog-area" id="cadProgArea">
+    <div class="prog-area" id="cadProgArea">
       <div class="prog-wrap"><div class="prog-bar" id="cadProgBar" style="background:var(--accent2)"></div></div>
       <div class="prog-txt" id="cadProgTxt">조회 중...</div>
     </div>
-</div>
+
+    <div class="stats-area" id="cadStatsArea">
+      <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)" id="cadStatGrid"></div>
+    </div>
+
+    <div class="result-area" id="cadResultArea">
+      <div class="empty-state">
+        <div class="ei">🗺️</div>
+        <p>지번을 입력하고<br>조회 버튼을 눌러주세요</p>
+      </div>
+    </div>
+  </div>
 
 <!-- 경로 패널 (탭1) -->
 <div id="routePanel">
