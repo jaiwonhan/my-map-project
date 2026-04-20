@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>지도 도구</title>
-  <!-- Draft_v.0.6 -->
+  <!-- Draft_v.0.7 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -1121,7 +1121,7 @@ function resolveCoord(addr) {
   });
 }
 
-/* ── Cloudflare Worker 프록시 (Draft_v.0.6) ── */
+/* ── Cloudflare Worker 프록시 (Draft_v.0.7) ── */
 const CF_WORKER = 'https://solitary-art-4065.han6466793.workers.dev';
 
 async function fetchWithProxy(targetUrl) {
@@ -1132,32 +1132,44 @@ async function fetchWithProxy(targetUrl) {
     var timer = setTimeout(function(){ controller.abort(); }, 10000);
     var res = await fetch(proxyUrl, { signal: controller.signal });
     clearTimeout(timer);
-    if (!res.ok) {
-      setDebugMsg('❌ Worker 응답 오류: HTTP ' + res.status);
-      return null;
-    }
+
     var text = await res.text();
-    if (!text || text.trim().length === 0) {
-      setDebugMsg('❌ Worker 응답이 비어있음');
+    var trimmed = (text || '').trim();
+
+    // 응답 앞부분을 항상 디버그에 표시
+    setDebugMsg('📥 응답 HTTP ' + res.status + ' | 앞80자: ' + trimmed.slice(0, 80));
+
+    if (!trimmed) {
+      setDebugMsg('❌ 응답이 비어있음');
       return null;
     }
+
+    // JSON 시작 문자가 아니면 XML이나 HTML일 가능성
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+      setDebugMsg('❌ JSON 아님 (XML/HTML 응답) - 내용: ' + trimmed.slice(0, 120));
+      return null;
+    }
+
     var json = null;
     try {
-      json = JSON.parse(text.trim());
+      json = JSON.parse(trimmed);
     } catch(e) {
-      setDebugMsg('❌ JSON 파싱 실패: ' + text.trim().slice(0, 80));
+      setDebugMsg('❌ JSON 파싱 실패: ' + e.message + ' | 내용: ' + trimmed.slice(0, 80));
       return null;
     }
+
     if (json && json.error) {
-      setDebugMsg('❌ Worker 에러: ' + json.error);
+      setDebugMsg('❌ Worker/API 에러: ' + json.error);
       return null;
     }
     if (json && json.features !== undefined) {
-      setDebugMsg('✅ WFS 응답 수신 (features: ' + json.features.length + '개)');
+      setDebugMsg('✅ WFS 성공! features: ' + json.features.length + '개');
+    } else {
+      setDebugMsg('⚠️ JSON 파싱됐으나 features 없음. 키: ' + Object.keys(json).join(', '));
     }
     return json;
   } catch(e) {
-    setDebugMsg('❌ fetch 실패: ' + e.message);
+    setDebugMsg('❌ fetch 예외: ' + e.message);
     return null;
   }
 }
@@ -1209,7 +1221,7 @@ function geoJsonToLatLng(geometry) {
   return null;
 }
 
-/* ── 검색 실행 (Draft_v.0.6) ── */
+/* ── 검색 실행 (Draft_v.0.7) ── */
 async function doCadSearch() {
   const addrs = getCadAddrs();
   if (addrs.length === 0) { alert('지번을 입력해주세요.'); return; }
