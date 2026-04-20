@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>지도 도구</title>
-  <!-- Draft_v.0.2 -->
+  <!-- Draft_v.0.3 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -1170,7 +1170,7 @@ function geoJsonToLatLng(geometry) {
   return null;
 }
 
-/* ── 검색 실행 (Draft_v.0.2 - CORS 프록시로 WFS 필지경계 복원) ── */
+/* ── 검색 실행 (Draft_v.0.3 - CORS 프록시로 WFS 필지경계 복원) ── */
 async function doCadSearch() {
   const addrs = getCadAddrs();
   if (addrs.length === 0) { alert('지번을 입력해주세요.'); return; }
