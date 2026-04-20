@@ -3,7 +3,7 @@
 <head>
   <title>물건/유사사례/매매사례 위치도</title>
   <meta charset="utf-8">
-  <!-- v.1.0 -->
+  <!-- v.1.1 -->
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -168,7 +168,7 @@
 
     /* ── 경로 패널 ── */
     #routePanel {
-      position: absolute; top: 20px; right: 20px;
+      position: absolute; bottom: 20px; right: 20px;
       background: rgba(255,255,255,0.97); border-radius: 10px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.15);
       padding: 14px 16px; z-index: 10; width: 280px;
@@ -177,7 +177,6 @@
     #routePanel h3 {
       font-size: 13px; color: #222; border-bottom: 1px solid #eee;
       padding-bottom: 6px; margin-bottom: 8px;
-      position: sticky; top: 0; background: rgba(255,255,255,0.97);
       display: flex; align-items: center; justify-content: space-between;
     }
     .rp-close {
@@ -830,12 +829,32 @@
       panel.style.display = 'none';
       if (rp) rp.style.display = 'none';
       map.relayout();
+
+      // 토스트 메시지 표시
+      const toast = document.createElement('div');
+      toast.id = 'shotToast';
+      toast.style.cssText = [
+        'position:fixed', 'top:50%', 'left:50%',
+        'transform:translate(-50%,-50%)',
+        'background:rgba(0,0,0,0.78)', 'color:#fff',
+        'font-size:14px', 'font-weight:600',
+        'padding:18px 32px', 'border-radius:12px',
+        'z-index:9999', 'text-align:center', 'line-height:1.8',
+        'pointer-events:none', 'font-family:Noto Sans KR,sans-serif',
+        'box-shadow:0 4px 20px rgba(0,0,0,0.3)'
+      ].join(';');
+      toast.innerHTML = '📷 지금 스크린샷을 찍어주세요!<br>'
+        + '<span style="font-size:11px;opacity:0.75;font-weight:400;">'
+        + 'Windows: Win+Shift+S &nbsp;|&nbsp; Mac: Cmd+Shift+4</span>';
+      document.body.appendChild(toast);
+
+      // 3초 후 토스트 제거 + 패널 복원
       setTimeout(() => {
-        alert('📷 지금 스크린샷을 찍어주세요!\n\n• Windows: Win + Shift + S\n• Mac: Cmd + Shift + 4\n\n확인을 누르면 패널이 복원됩니다.');
+        toast.remove();
         panel.style.display = '';
         if (rp && isRouteShown) rp.style.display = 'block';
         map.relayout();
-      }, 150);
+      }, 3000);
     }
 
     /* ─── 유틸 ─── */
