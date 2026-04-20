@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>지도 도구</title>
-  <!-- Draft_v.0.9 -->
+  <!-- v.1.1 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -184,6 +184,49 @@
     }
     .sw:hover { transform: scale(1.2); }
     .sw.on { border-color: #fff; }
+
+    /* ── 인쇄 스타일 ── */
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      #panel, #mapCtrl, #routePanel, #captureBar { display: none !important; }
+      #printWatermark { display: block !important; }
+      #map { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; }
+      body { overflow: visible !important; }
+    }
+    #printWatermark {
+      display: none;
+      position: fixed; bottom: 12px; right: 14px;
+      font-size: 10px; color: #aaa; z-index: 9999;
+      font-family: 'Noto Sans KR', sans-serif;
+      background: rgba(255,255,255,0.8);
+      padding: 3px 8px; border-radius: 4px;
+    }
+
+    /* ── 캡처 오버레이 ── */
+    #captureBar {
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: rgba(255,255,255,0.97); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 16px; z-index: 15;
+      display: none; gap: 8px; align-items: center;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+      font-size: 11px; color: var(--muted);
+    }
+    #captureBar.show { display: flex; }
+    .cap-btn {
+      padding: 6px 14px; border-radius: 6px; border: none;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      font-family: inherit;
+    }
+    .cap-btn.print { background: var(--accent); color: #fff; }
+    .cap-btn.close { background: var(--card); border: 1px solid var(--border); color: var(--muted); }
+
+    /* ── 팝업 메모 ── */
+    .marker-popup .pop-memo {
+      margin-top: 5px; padding-top: 5px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--accent);
+      font-weight: 600;
+    }
 
     /* ════════════════════════════════
        탭1: 매매사례 전용
@@ -417,7 +460,8 @@
   <!-- 탭 버튼 -->
   <div class="tab-bar">
     <button class="tab-btn t1 active" onclick="switchTab(1)">📍 매매사례 위치도</button>
-    <button class="tab-btn t2"        onclick="switchTab(2)">🗺 지적 필지 경계</button>
+    <button class="tab-btn t2" onclick="switchTab(2)" id="tab2Btn" style="display:none;">🗺 지적 필지 경계</button>
+    <!-- 개발모드: Ctrl+Shift+D 로 탭2 표시 -->
   </div>
 
   <!-- ══════ 탭1: 매매사례 ══════ -->
@@ -429,6 +473,7 @@
       <span class="fh-color">색</span>
       <span class="fh-addr">주소 / 지명</span>
       <span class="fh-dist">본건 기준 거리</span>
+      <span class="fh-memo" style="width:80px;font-size:10px;color:var(--muted);flex-shrink:0;text-align:center;">면적/단가</span>
       <span class="fh-del"></span>
     </div>
 
@@ -439,6 +484,7 @@
     <div class="btn-area">
       <button class="btn-main c1" onclick="searchAddresses()">🔍 주소 조회</button>
       <button class="btn-main c1" id="routeBtn" style="flex:0.7;font-size:11px;" onclick="toggleRoute()">경로 보기</button>
+      <button class="btn-sub" onclick="toggleCaptureBar()" title="인쇄/캡처">🖨️</button>
       <button class="btn-sub" onclick="clearSales()">초기화</button>
     </div>
 
@@ -500,10 +546,22 @@
 
 <!-- 경로 패널 (탭1) -->
 <div id="routePanel">
-  <h3>🚗 순차 경로</h3>
+  <h3 style="display:flex;justify-content:space-between;align-items:center;">🚗 순차 경로 <span style="font-size:10px;color:var(--muted);font-weight:400;cursor:pointer;" onclick="clearRoute()">✕ 닫기</span></h3>
   <div id="routeList"></div>
   <div id="routeTotal"></div>
 </div>
+
+<!-- 인쇄/캡처 바 -->
+<div id="captureBar">
+  <div style="display:flex;flex-direction:column;gap:3px;">
+    <span style="font-weight:600;color:var(--text);">🖨️ 인쇄 / 캡처</span>
+    <span style="font-size:10px;color:var(--muted);">인쇄 시 패널이 자동으로 숨겨집니다</span>
+  </div>
+  <button class="cap-btn print" onclick="doPrint()">🖨️ 인쇄</button>
+  <button class="cap-btn" style="background:#f0fdf4;border:1px solid #16a34a;color:#16a34a;" onclick="doScreenshot()">📷 화면 캡처</button>
+  <button class="cap-btn close" onclick="toggleCaptureBar()">✕</button>
+</div>
+<div id="printWatermark">감정평가 지도 도구 · 매매사례 위치도</div>
 
 <!-- 지도 컨트롤 (탭2) -->
 <div id="mapCtrl" style="display:none;">
@@ -574,6 +632,9 @@ function initMap() {
   geocoder  = new kakao.maps.services.Geocoder();
   psService = new kakao.maps.services.Places();
 
+  // 지적편집도 기본 ON (항상)
+  map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+
   kakao.maps.event.addListener(map, 'click', () => {
     closeSalesPopup(); closeAllAc();
   });
@@ -620,9 +681,10 @@ function switchTab(n) {
   document.getElementById('routePanel').style.display = (n === 1 && isRouteShown) ? 'block' : 'none';
   document.getElementById('mapCtrl').style.display    = n === 2 ? 'flex' : 'none';
 
-  // 탭2: 지적편집도 레이어 적용
+  // 지적편집도는 항상 ON 유지
+  map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+  // 탭2 전용 레이어 처리
   if (n === 2) applyMapLayers();
-  else         map.removeOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
 }
 
 /* ══════════════════════════════════
@@ -673,6 +735,11 @@ function addSalesRow(initData = {}) {
     <div class="dist-cell ${isFirst ? 'is-main' : ''}" id="dist-${id}">
       <span class="dc-empty">—</span>
     </div>
+    <input type="text" id="memo-${id}" placeholder="면적/단가"
+      style="width:80px;height:26px;padding:3px 5px;font-size:10px;
+      background:var(--card);border:1px solid var(--border);border-radius:5px;
+      color:var(--text);font-family:inherit;flex-shrink:0;"
+      ${isFirst ? '' : ''}>
     <button class="btn-del" onclick="deleteSalesRow(${id})">×</button>
   `;
   document.getElementById('rowList').appendChild(div);
@@ -903,13 +970,19 @@ function applyOffset(pos, offsetMap) {
   );
 }
 
-function placeSalesMarker(pos, label, addr, color) {
+function placeSalesMarker(pos, label, addr, color, memo) {
   const el = document.createElement('div');
   el.className = 'kakao-marker';
-  el.style.background = color;
-  el.textContent = label;
-  el.onclick = (e) => { e.stopPropagation(); showSalesPopup(pos, label, addr); };
-  const ov = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1.4 });
+  el.style.cssText = 'background:' + color + ';display:inline-flex;align-items:center;gap:4px;'
+    + 'padding:4px 9px;border-radius:6px;border:1.5px solid rgba(255,255,255,0.5);'
+    + 'font-size:11px;font-weight:700;color:white;white-space:nowrap;'
+    + 'box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;user-select:none;';
+  // 본건은 별 아이콘, 나머지는 점
+  const dot = label === (document.getElementById('type-1') ? document.getElementById('type-1').value || '본건' : '본건')
+    ? '★' : '●';
+  el.innerHTML = '<span style="font-size:9px;opacity:0.8">' + dot + '</span>' + label;
+  el.onclick = (e) => { e.stopPropagation(); showSalesPopup(pos, label, addr, memo); };
+  const ov = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1.5 });
   ov.setMap(map);
   salesMarkerOverlays.push(ov);
 }
@@ -921,16 +994,16 @@ function clearSalesMarkers() {
 }
 
 /* 팝업 */
-function showSalesPopup(pos, label, addr) {
+function showSalesPopup(pos, label, addr, memo) {
   closeSalesPopup();
   const el = document.createElement('div');
   el.className = 'marker-popup';
-  el.innerHTML = `
-    <div class="pop-close" onclick="closeSalesPopup()">×</div>
-    <div class="pop-title">${label}</div>
-    <div class="pop-addr">${addr}</div>
-  `;
-  salesPopupOverlay = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1.7, zIndex: 10 });
+  const memoHtml = memo ? '<div class="pop-memo">📋 ' + memo + '</div>' : '';
+  el.innerHTML = '<div class="pop-close" onclick="closeSalesPopup()">×</div>'
+    + '<div class="pop-title">' + label + '</div>'
+    + '<div class="pop-addr">' + addr + '</div>'
+    + memoHtml;
+  salesPopupOverlay = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1.8, zIndex: 10 });
   salesPopupOverlay.setMap(map);
 }
 function closeSalesPopup() {
@@ -1258,6 +1331,58 @@ function clearCad(clearRows = true) {
    공통 유틸
 ══════════════════════════════════ */
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ── 인쇄/캡처 기능 ── */
+function toggleCaptureBar() {
+  document.getElementById('captureBar').classList.toggle('show');
+}
+
+function doPrint() {
+  // 인쇄 전 패널 일시 숨김
+  const panel = document.getElementById('panel');
+  const rp    = document.getElementById('routePanel');
+  const cb    = document.getElementById('captureBar');
+  panel.style.display = 'none';
+  if (rp) rp.style.display = 'none';
+  cb.classList.remove('show');
+  // 지도 리사이즈 후 인쇄
+  setTimeout(function() {
+    map.relayout();
+    setTimeout(function() {
+      window.print();
+      // 인쇄 다이얼로그 닫히면 복원
+      setTimeout(function() {
+        panel.style.display = '';
+        if (rp && isRouteShown) rp.style.display = 'block';
+        map.relayout();
+      }, 500);
+    }, 300);
+  }, 100);
+}
+
+function doScreenshot() {
+  // 캡처 바 숨기고 안내
+  document.getElementById('captureBar').classList.remove('show');
+  // 패널 일시 숨김
+  const panel = document.getElementById('panel');
+  panel.style.display = 'none';
+  map.relayout();
+  setTimeout(function() {
+    alert('📷 지금 스크린샷을 찍어주세요!\n\n• Windows: Win + Shift + S\n• Mac: Cmd + Shift + 4\n\n확인을 누르면 패널이 복원됩니다.');
+    panel.style.display = '';
+    map.relayout();
+  }, 200);
+}
+
+/* ── 개발자 모드: Ctrl+Shift+D 로 탭2 표시/숨김 ── */
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    const btn = document.getElementById('tab2Btn');
+    if (btn) btn.style.display = btn.style.display === 'none' ? '' : 'none';
+  }
+});
+
+/* ── 인쇄/캡처 바 토글 ── *
 
 function fmtDuration(sec) {
   const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
