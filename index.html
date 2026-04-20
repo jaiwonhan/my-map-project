@@ -1087,23 +1087,8 @@ function toggleSatellite() {
   applyMapLayers();
 }
 
-/* ── VWORLD 주소 → 좌표 (주소검색 API, CORS 허용됨) ── */
-async function fetchCoordFromVworld(addr) {
-  const encAddr = encodeURIComponent(addr);
-  const url = `https://api.vworld.kr/req/address?service=address&request=getcoord&version=2.0` +
-    `&crs=epsg:4326&address=${encAddr}&refine=true&simple=false&format=json&type=parcel&key=${VWORLD_KEY}`;
-  try {
-    const r = await fetch(url);
-    const d = await r.json();
-    if (d.response?.status === 'OK') {
-      return { lat: parseFloat(d.response.result.point.y), lng: parseFloat(d.response.result.point.x) };
-    }
-  } catch(e) {}
-  return null;
-}
-
-/* ── 카카오 지오코딩 fallback ── */
-function kakaoGeocodeSimple(addr) {
+/* ── 주소 → 좌표 (카카오 지오코딩) ── */
+function resolveCoord(addr) {
   return new Promise(resolve => {
     geocoder.addressSearch(addr, (res, st) => {
       if (st === kakao.maps.services.Status.OK) {
@@ -1116,13 +1101,6 @@ function kakaoGeocodeSimple(addr) {
       }
     });
   });
-}
-
-/* ── 주소 → 좌표 (VWORLD 우선, 카카오 fallback) ── */
-async function resolveCoord(addr) {
-  const pos = await fetchCoordFromVworld(addr);
-  if (pos) return pos;
-  return await kakaoGeocodeSimple(addr);
 }
 
 /* ── VWORLD WMS 타일 레이어 (지적도 경계선 이미지) ── */
