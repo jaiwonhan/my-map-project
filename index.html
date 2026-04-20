@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>지도 도구</title>
-  <!-- Draft_v.0.7 -->
+  <!-- Draft_v.0.8 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -1121,7 +1121,7 @@ function resolveCoord(addr) {
   });
 }
 
-/* ── Cloudflare Worker 프록시 (Draft_v.0.7) ── */
+/* ── Cloudflare Worker 프록시 (Draft_v.0.8) ── */
 const CF_WORKER = 'https://solitary-art-4065.han6466793.workers.dev';
 
 async function fetchWithProxy(targetUrl) {
@@ -1221,7 +1221,7 @@ function geoJsonToLatLng(geometry) {
   return null;
 }
 
-/* ── 검색 실행 (Draft_v.0.7) ── */
+/* ── 검색 실행 (Draft_v.0.8) ── */
 async function doCadSearch() {
   const addrs = getCadAddrs();
   if (addrs.length === 0) { alert('지번을 입력해주세요.'); return; }
@@ -1238,6 +1238,10 @@ async function doCadSearch() {
   document.getElementById('btnCadSearch').disabled = true;
   var db = document.getElementById('cadDebugBox');
   if (db) db.innerHTML = '';
+  var pb = document.getElementById('cadProgBar');
+  var pt = document.getElementById('cadProgTxt');
+  if (pb) pb.style.display = 'block';
+  if (pt) pt.style.display = 'block';
 
   // 카카오 지적편집도 배경 레이어 켜기
   isCadastral = true;
@@ -1343,8 +1347,11 @@ async function doCadSearch() {
     map.setBounds(bounds, 80);
   }
 
-  document.getElementById('cadProgArea').style.display = 'none';
+  // 진행바만 숨기고 디버그 박스는 유지
+  document.getElementById('cadProgBar').style.display = 'none';
+  document.getElementById('cadProgTxt').style.display = 'none';
   document.getElementById('btnCadSearch').disabled = false;
+  setDebugMsg('─── 조회 완료 ───');
   showCadStats(results);
 }
 
@@ -1406,6 +1413,10 @@ function clearCad(clearRows = true) {
   document.getElementById('cadStatsArea').style.display = 'none';
   document.getElementById('cadProgArea').style.display  = 'none';
   document.getElementById('cadProgBar').style.width     = '0%';
+  document.getElementById('cadProgBar').style.display   = 'block';
+  document.getElementById('cadProgTxt').style.display   = 'block';
+  var db2 = document.getElementById('cadDebugBox');
+  if (db2) db2.innerHTML = '';
 }
 
 /* ══════════════════════════════════
