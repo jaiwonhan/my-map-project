@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>지도 도구</title>
-  <!-- Draft_v.0.5 -->
+  <!-- Draft_v.0.6 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -487,6 +487,13 @@
     <div class="prog-area" id="cadProgArea">
       <div class="prog-wrap"><div class="prog-bar" id="cadProgBar" style="background:var(--accent2)"></div></div>
       <div class="prog-txt" id="cadProgTxt">조회 중...</div>
+      <div id="cadDebugBox" style="
+        margin-top:6px; padding:7px 10px;
+        background:#f8faff; border:1px solid #dbeafe;
+        border-radius:6px; font-size:10px; color:#1e40af;
+        line-height:1.7; max-height:90px; overflow-y:auto;
+        font-family:monospace;
+      "></div>
     </div>
 
     <div class="stats-area" id="cadStatsArea">
@@ -1114,23 +1121,45 @@ function resolveCoord(addr) {
   });
 }
 
-/* ── Cloudflare Worker 프록시 (Draft_v.0.5) ── */
+/* ── Cloudflare Worker 프록시 (Draft_v.0.6) ── */
 const CF_WORKER = 'https://solitary-art-4065.han6466793.workers.dev';
 
 async function fetchWithProxy(targetUrl) {
   var proxyUrl = CF_WORKER + '?target=' + encodeURIComponent(targetUrl);
+  setDebugMsg('🔗 Worker 호출 중...');
   try {
     var controller = new AbortController();
     var timer = setTimeout(function(){ controller.abort(); }, 10000);
     var res = await fetch(proxyUrl, { signal: controller.signal });
     clearTimeout(timer);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      setDebugMsg('❌ Worker 응답 오류: HTTP ' + res.status);
+      return null;
+    }
     var text = await res.text();
-    if (!text || text.trim().length === 0) return null;
+    if (!text || text.trim().length === 0) {
+      setDebugMsg('❌ Worker 응답이 비어있음');
+      return null;
+    }
     var json = null;
-    try { json = JSON.parse(text.trim()); } catch(e) { return null; }
+    try {
+      json = JSON.parse(text.trim());
+    } catch(e) {
+      setDebugMsg('❌ JSON 파싱 실패: ' + text.trim().slice(0, 80));
+      return null;
+    }
+    if (json && json.error) {
+      setDebugMsg('❌ Worker 에러: ' + json.error);
+      return null;
+    }
+    if (json && json.features !== undefined) {
+      setDebugMsg('✅ WFS 응답 수신 (features: ' + json.features.length + '개)');
+    }
     return json;
-  } catch(e) { return null; }
+  } catch(e) {
+    setDebugMsg('❌ fetch 실패: ' + e.message);
+    return null;
+  }
 }
 
 /* ── VWORLD WFS로 필지 경계 폴리곤 조회 ── */
@@ -1140,6 +1169,7 @@ async function fetchParcelByCoord(lng, lat) {
             + ',' + (lng+delta).toFixed(6) + ',' + (lat+delta).toFixed(6);
   var layers = ['lp_pa_cbnd_bubun', 'lt_c_landinfobasic'];
   for (var li = 0; li < layers.length; li++) {
+    setDebugMsg('📡 WFS 레이어 조회: ' + layers[li]);
     var wfsUrl = 'https://api.vworld.kr/req/wfs'
       + '?service=WFS'
       + '&version=2.0.0'
@@ -1152,10 +1182,17 @@ async function fetchParcelByCoord(lng, lat) {
       + '&key=' + VWORLD_KEY;
     var data = await fetchWithProxy(wfsUrl);
     if (data && data.features && data.features.length > 0) {
-      // 좌표 포함된 geometry 반환
-      if (data.features[0].geometry) return data.features[0].geometry;
+      if (data.features[0].geometry) {
+        setDebugMsg('✅ 필지 경계 획득 성공! (' + layers[li] + ')');
+        return data.features[0].geometry;
+      } else {
+        setDebugMsg('⚠️ features 있으나 geometry 없음');
+      }
+    } else {
+      setDebugMsg('⚠️ ' + layers[li] + ': features 없음 (bbox=' + bbox + ')');
     }
   }
+  setDebugMsg('❌ 두 레이어 모두 필지 경계 없음');
   return null;
 }
 
@@ -1172,7 +1209,7 @@ function geoJsonToLatLng(geometry) {
   return null;
 }
 
-/* ── 검색 실행 (Draft_v.0.5) ── */
+/* ── 검색 실행 (Draft_v.0.6) ── */
 async function doCadSearch() {
   const addrs = getCadAddrs();
   if (addrs.length === 0) { alert('지번을 입력해주세요.'); return; }
@@ -1187,6 +1224,8 @@ async function doCadSearch() {
   document.getElementById('cadProgBar').style.width = '0%';
   document.getElementById('cadProgArea').style.display = 'block';
   document.getElementById('btnCadSearch').disabled = true;
+  var db = document.getElementById('cadDebugBox');
+  if (db) db.innerHTML = '';
 
   // 카카오 지적편집도 배경 레이어 켜기
   isCadastral = true;
@@ -1201,13 +1240,22 @@ async function doCadSearch() {
     document.getElementById('cadProgTxt').textContent = '조회 중... (' + (i+1) + '/' + addrs.length + ') ' + addrs[i];
 
     // 1단계: 카카오로 좌표 조회
+    setDebugMsg('📍 [' + (i+1) + '] 좌표 조회 중: ' + addrs[i]);
     var pos = null;
     try { pos = await resolveCoord(addrs[i]); } catch(e) { pos = null; }
+    if (pos) {
+      setDebugMsg('✅ 좌표 획득: ' + pos.lat.toFixed(5) + ', ' + pos.lng.toFixed(5));
+    } else {
+      setDebugMsg('❌ 좌표 조회 실패: ' + addrs[i]);
+    }
 
-    // 2단계: 좌표로 VWORLD WFS 필지 경계 조회 (CORS 프록시 경유)
+    // 2단계: 좌표로 VWORLD WFS 필지 경계 조회 (Cloudflare Worker 경유)
     var geometry = null;
     if (pos) {
-      try { geometry = await fetchParcelByCoord(pos.lng, pos.lat); } catch(e) { geometry = null; }
+      try { geometry = await fetchParcelByCoord(pos.lng, pos.lat); } catch(e) {
+        setDebugMsg('❌ fetchParcelByCoord 예외: ' + e.message);
+        geometry = null;
+      }
     }
 
     results.push({ addr: addrs[i], pos: pos, geometry: geometry });
@@ -1352,6 +1400,17 @@ function clearCad(clearRows = true) {
    공통 유틸
 ══════════════════════════════════ */
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ── 디버그 메시지 표시 ── */
+function setDebugMsg(msg) {
+  var box = document.getElementById('cadDebugBox');
+  if (!box) return;
+  var line = document.createElement('div');
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  console.log('[CAD]', msg);
+}
 function fmtDuration(sec) {
   const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
   return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
