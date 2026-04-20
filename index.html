@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>지도 도구</title>
+  <!-- Draft_v.0.1 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=6eeecb35764068b879f54c7b4bd79610&libraries=services,clusterer"></script>
@@ -1087,19 +1088,26 @@ function toggleSatellite() {
   applyMapLayers();
 }
 
-/* ── 주소 → 좌표 (카카오 지오코딩) ── */
+/* ── 주소 → 좌표 (카카오 지오코딩, Promise 보장) ── */
 function resolveCoord(addr) {
-  return new Promise(resolve => {
-    geocoder.addressSearch(addr, (res, st) => {
-      if (st === kakao.maps.services.Status.OK) {
-        resolve({ lat: parseFloat(res[0].y), lng: parseFloat(res[0].x) });
-      } else {
-        psService.keywordSearch(addr, (res2, st2) => {
-          resolve(st2 === kakao.maps.services.Status.OK
-            ? { lat: parseFloat(res2[0].y), lng: parseFloat(res2[0].x) } : null);
-        });
-      }
-    });
+  return new Promise((resolve) => {
+    try {
+      geocoder.addressSearch(addr, (res, st) => {
+        if (st === kakao.maps.services.Status.OK && res.length > 0) {
+          resolve({ lat: parseFloat(res[0].y), lng: parseFloat(res[0].x) });
+        } else {
+          try {
+            psService.keywordSearch(addr, (res2, st2) => {
+              if (st2 === kakao.maps.services.Status.OK && res2.length > 0) {
+                resolve({ lat: parseFloat(res2[0].y), lng: parseFloat(res2[0].x) });
+              } else {
+                resolve(null);
+              }
+            });
+          } catch(e2) { resolve(null); }
+        }
+      });
+    } catch(e) { resolve(null); }
   });
 }
 
@@ -1141,56 +1149,57 @@ async function doCadSearch() {
   const addrs = getCadAddrs();
   if (addrs.length === 0) { alert('지번을 입력해주세요.'); return; }
 
-  clearCad(false);
+  // 상태 초기화
+  cadOverlays.forEach(o => o.setMap(null)); cadOverlays = [];
+  cadPolygons.forEach(p => p.setMap(null)); cadPolygons = [];
+  if (cadHullPoly) { cadHullPoly.setMap(null); cadHullPoly = null; }
+
+  document.getElementById('cadResultArea').innerHTML = '';
+  document.getElementById('cadStatsArea').style.display = 'none';
+  document.getElementById('cadProgBar').style.width = '0%';
   document.getElementById('cadProgArea').style.display = 'block';
   document.getElementById('btnCadSearch').disabled = true;
-  document.getElementById('cadResultArea').innerHTML = '';
 
-  // VWORLD WMS 지적도 레이어 활성화
-  addVworldWmsLayer();
-  // 카카오 지적편집도도 함께 켜기
+  // 지적편집도 레이어 켜기
   isCadastral = true;
   document.getElementById('btnCadastral').classList.add('active');
   applyMapLayers();
+  addVworldWmsLayer();
 
   const results   = [];
   const allCoords = [];
 
   for (let i = 0; i < addrs.length; i++) {
-    const pct = Math.round(((i+1)/addrs.length)*100);
-    document.getElementById('cadProgBar').style.width = pct + '%';
-    document.getElementById('cadProgTxt').textContent = `조회 중... (${i+1}/${addrs.length})`;
+    document.getElementById('cadProgBar').style.width = Math.round(((i+1)/addrs.length)*100) + '%';
+    document.getElementById('cadProgTxt').textContent = '조회 중... (' + (i+1) + '/' + addrs.length + ') ' + addrs[i];
 
-    const pos = await resolveCoord(addrs[i]);
-    results.push({ addr: addrs[i], pos, idx: i+1 });
+    let pos = null;
+    try {
+      pos = await resolveCoord(addrs[i]);
+    } catch(e) { pos = null; }
+
+    results.push({ addr: addrs[i], pos });
 
     if (pos) {
       const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
       allCoords.push(latlng);
 
-      // 마커 (번호 + 지번 끝자리)
       if (isOpt('optLabel')) {
         const el = document.createElement('div');
-        el.style.cssText = `
-          background:${cadSelColor}; color:#fff; font-size:10px; font-weight:700;
-          padding:3px 7px; border-radius:4px; white-space:nowrap; cursor:pointer;
-          box-shadow:0 2px 6px rgba(0,0,0,0.25); font-family:'Noto Sans KR',sans-serif;
-          border: 1.5px solid rgba(255,255,255,0.6);
-        `;
-        el.textContent = `${i+1}. ${addrs[i].split(' ').slice(-1)[0]}`;
+        el.style.cssText = 'background:' + cadSelColor + ';color:#fff;font-size:10px;font-weight:700;' +
+          'padding:3px 7px;border-radius:4px;white-space:nowrap;cursor:pointer;' +
+          'box-shadow:0 2px 6px rgba(0,0,0,0.25);font-family:Noto Sans KR,sans-serif;' +
+          'border:1.5px solid rgba(255,255,255,0.6);';
+        el.textContent = (i+1) + '. ' + addrs[i].split(' ').slice(-1)[0];
         const ov = new kakao.maps.CustomOverlay({ position: latlng, content: el, yAnchor: 1.6 });
         ov.setMap(map);
         cadOverlays.push(ov);
       }
 
-      // 중심 점 마커
       if (isOpt('optBound')) {
         const dot = document.createElement('div');
-        dot.style.cssText = `
-          width:10px; height:10px; border-radius:50%;
-          background:${cadSelColor}; border:2px solid #fff;
-          box-shadow:0 1px 4px rgba(0,0,0,0.3);
-        `;
+        dot.style.cssText = 'width:10px;height:10px;border-radius:50%;' +
+          'background:' + cadSelColor + ';border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);';
         const dotOv = new kakao.maps.CustomOverlay({ position: latlng, content: dot, yAnchor: 0.5 });
         dotOv.setMap(map);
         cadOverlays.push(dotOv);
@@ -1198,18 +1207,18 @@ async function doCadSearch() {
     }
 
     renderCadItem(addrs[i], pos, i+1);
-    await sleep(100);
+    await new Promise(r => setTimeout(r, 50));
   }
 
-  // 전체 외곽선 (Convex Hull)
+  // 전체 외곽선
   if (isOpt('optHull') && allCoords.length >= 3) {
     const pts  = allCoords.map(p => [p.getLng(), p.getLat()]);
     const hull = convexHull(pts);
-    const hll  = hull.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng));
+    const hll  = hull.map(function(c){ return new kakao.maps.LatLng(c[1], c[0]); });
     cadHullPoly = new kakao.maps.Polygon({
       map, path: hll,
       strokeWeight: 3, strokeColor: cadSelColor, strokeOpacity: 0.9, strokeStyle: 'dashed',
-      fillColor: cadSelColor, fillOpacity: 0.05,
+      fillColor: cadSelColor, fillOpacity: 0.06,
     });
   } else if (isOpt('optHull') && allCoords.length === 2) {
     cadHullPoly = new kakao.maps.Polyline({
@@ -1221,7 +1230,7 @@ async function doCadSearch() {
   // 지도 범위 맞춤
   if (allCoords.length > 0) {
     const bounds = new kakao.maps.LatLngBounds();
-    allCoords.forEach(p => bounds.extend(p));
+    allCoords.forEach(function(p){ bounds.extend(p); });
     map.setBounds(bounds, 100);
   }
 
@@ -1257,17 +1266,16 @@ function renderCadItem(addr, pos, idx) {
 }
 
 function showCadStats(results) {
-  const ok   = results.filter(r => r.pos).length;
+  const ok   = results.filter(function(r){ return !!r.pos; }).length;
   const fail = results.length - ok;
   document.getElementById('cadStatsArea').style.display = 'block';
-  document.getElementById('cadStatGrid').innerHTML = `
-    <div class="stat-card"><div class="stat-lbl">입력</div>
-      <div class="stat-val">${results.length}<span class="stat-unit">개</span></div></div>
-    <div class="stat-card"><div class="stat-lbl">성공</div>
-      <div class="stat-val" style="color:var(--accent2)">${ok}<span class="stat-unit">개</span></div></div>
-    <div class="stat-card"><div class="stat-lbl">실패</div>
-      <div class="stat-val" style="color:${fail>0?'var(--warn)':'var(--muted)'}">${fail}<span class="stat-unit">개</span></div></div>
-  `;
+  document.getElementById('cadStatGrid').innerHTML =
+    '<div class="stat-card"><div class="stat-lbl">입력</div>' +
+    '<div class="stat-val">' + results.length + '<span class="stat-unit">개</span></div></div>' +
+    '<div class="stat-card"><div class="stat-lbl">성공</div>' +
+    '<div class="stat-val" style="color:var(--accent2)">' + ok + '<span class="stat-unit">개</span></div></div>' +
+    '<div class="stat-card"><div class="stat-lbl">실패</div>' +
+    '<div class="stat-val" style="color:' + (fail>0?'var(--warn)':'var(--muted)') + '">' + fail + '<span class="stat-unit">개</span></div></div>';
 }
 
 function clearCad(clearRows = true) {
